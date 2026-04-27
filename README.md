@@ -98,7 +98,7 @@ Application desktop Python (PySide6) pour piloter Android via ADB avec une inter
 - Confirmation renforcée sur commandes critiques
 - Export documentation commandes (`.md` / `.pdf`)
 
-### 6-bis) Remote Control (scrcpy + ADB)
+### 7) Remote Control (scrcpy + ADB)
 
 - Mode remote complet via `scrcpy` depuis l’onglet `Remote`
 - Démarrage/arrêt piloté dans l’app
@@ -108,7 +108,7 @@ Application desktop Python (PySide6) pour piloter Android via ADB avec une inter
 - Actions de fallback ADB: Home/Back/Recents/Power/Volume/Notifications, envoi de texte, wake/unlock
 - Scope des actions ADB: appareil sélectionné ou tous les appareils connectés
 
-### 7) Batch Executor
+### 8) Batch Executor
 
 - File de commandes (drag & drop)
 - Exécution parallèle configurable (`workers`)
@@ -117,7 +117,7 @@ Application desktop Python (PySide6) pour piloter Android via ADB avec une inter
 - Progression live + métriques
 - Export rapport batch JSON
 
-### 8) Captures
+### 9) Captures
 
 - Screenshot appareil
 - Enregistrement vidéo écran Android
