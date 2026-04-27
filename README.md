@@ -49,6 +49,7 @@ Application desktop Python (PySide6) pour piloter Android via ADB avec une inter
 - Détection auto périodique (`adb devices -l`)
 - Badge appareil actif en temps réel
 - Connexion Wi‑Fi ADB (IP/port)
+- Pairing Wi‑Fi ADB sécurisé (`adb pair` + auto-détection mDNS + `adb connect`)
 - Scan réseau ADB (subnet)
 - Historique SQLite des événements
 
@@ -96,6 +97,16 @@ Application desktop Python (PySide6) pour piloter Android via ADB avec une inter
   - placeholders `<...>`
 - Confirmation renforcée sur commandes critiques
 - Export documentation commandes (`.md` / `.pdf`)
+
+### 6-bis) Remote Control (scrcpy + ADB)
+
+- Mode remote complet via `scrcpy` depuis l’onglet `Remote`
+- Démarrage/arrêt piloté dans l’app
+- Multi-appareils: lancement scrcpy par appareil ou `Start All`
+- Options vidéo (bitrate, max-size, fps) + flags (`fullscreen`, `always-on-top`, `view-only`, etc.)
+- Logs scrcpy dans l’interface
+- Actions de fallback ADB: Home/Back/Recents/Power/Volume/Notifications, envoi de texte, wake/unlock
+- Scope des actions ADB: appareil sélectionné ou tous les appareils connectés
 
 ### 7) Batch Executor
 
@@ -211,6 +222,24 @@ python main.py
 2. Cliquer `Actualiser`.
 3. Vérifier l’appareil actif dans le bandeau.
 4. Utiliser les onglets selon besoin.
+
+### Pairing Wi‑Fi (Android 11+)
+
+1. Sur le téléphone: `Options développeur > Débogage sans fil > Associer avec code`.
+2. Dans l’app: bouton `Pairing WiFi`.
+3. Saisir `IP:PORT` de pairing + le code 6 chiffres.
+4. L’app lance `adb pair`, détecte les endpoints `_adb-tls-connect` via mDNS puis lance `adb connect`.
+
+### Pairing par QR code depuis l'app
+
+Le bouton `Pairing QR` utilise un helper dédié (`adb-connect-qr`) pour générer le QR et finaliser automatiquement le pairing/connect.
+
+Installation:
+
+```bash
+source .venv/bin/activate
+pip install adb-connect-qr
+```
 
 ### Raccourcis
 

@@ -48,65 +48,82 @@ class AppManagerModule:
         apk_line = path_result.stdout.splitlines()[0].strip().replace("package:", "")
         return self.adb.run(["pull", apk_line, str(dest_file)], serial=serial)
 
-    def apk_remote_path(self, serial: str, package_name: str) -> str | None:
+    def apk_remote_paths(self, serial: str, package_name: str) -> list[str]:
         result = self.adb.run(["shell", "pm", "path", package_name], serial=serial)
         if not result.ok or not result.stdout:
-            return None
+            return []
+        paths: list[str] = []
         for line in result.stdout.splitlines():
             text = line.strip()
             if not text.startswith("package:"):
                 continue
             path = text.replace("package:", "", 1).strip()
             if path.endswith(".apk"):
-                return path
-        return None
+                paths.append(path)
+        if not paths:
+            return []
+        # Base APK first whenever possible, then the rest.
+        paths.sort(key=lambda p: (0 if p.endswith("/base.apk") else 1, len(p)))
+        return paths
 
     def fetch_app_icon(self, serial: str, package_name: str, cache_dir: Path) -> Path | None:
         cache_dir.mkdir(parents=True, exist_ok=True)
         key = hashlib.sha1(f"{serial}:{package_name}".encode("utf-8")).hexdigest()[:20]
+        missing_marker = cache_dir / f"{key}.missing"
 
         for ext in ("png", "webp", "jpg", "jpeg"):
             cached = cache_dir / f"{key}.{ext}"
             if cached.exists() and cached.stat().st_size > 0:
                 return cached
-
-        remote_apk = self.apk_remote_path(serial, package_name)
-        if not remote_apk:
+        if missing_marker.exists():
             return None
 
-        local_apk = cache_dir / f"{key}.apk"
-        pull = self.adb.run(["pull", remote_apk, str(local_apk)], serial=serial, timeout=120)
-        if not pull.ok or not local_apk.exists():
+        remote_apks = self.apk_remote_paths(serial, package_name)
+        if not remote_apks:
+            missing_marker.touch(exist_ok=True)
             return None
 
-        best_name = self._pick_best_icon_file(local_apk)
-        if not best_name:
-            local_apk.unlink(missing_ok=True)
-            return None
+        for index, remote_apk in enumerate(remote_apks):
+            local_apk = cache_dir / f"{key}.{index}.apk"
+            pull = self.adb.run(["pull", remote_apk, str(local_apk)], serial=serial, timeout=120)
+            if not pull.ok or not local_apk.exists():
+                local_apk.unlink(missing_ok=True)
+                continue
 
-        out_ext = Path(best_name).suffix.lower().lstrip(".") or "png"
-        icon_out = cache_dir / f"{key}.{out_ext}"
-        try:
-            with zipfile.ZipFile(local_apk) as zf:
-                data = zf.read(best_name)
-            icon_out.write_bytes(data)
-            if icon_out.stat().st_size == 0:
+            best_name = self._pick_best_icon_file(local_apk)
+            if not best_name:
+                local_apk.unlink(missing_ok=True)
+                continue
+
+            out_ext = Path(best_name).suffix.lower().lstrip(".") or "png"
+            icon_out = cache_dir / f"{key}.{out_ext}"
+            try:
+                with zipfile.ZipFile(local_apk) as zf:
+                    data = zf.read(best_name)
+                icon_out.write_bytes(data)
+                if icon_out.stat().st_size == 0:
+                    icon_out.unlink(missing_ok=True)
+                    continue
+                missing_marker.unlink(missing_ok=True)
+                return icon_out
+            except Exception:  # noqa: BLE001
                 icon_out.unlink(missing_ok=True)
-                return None
-            return icon_out
-        except Exception:  # noqa: BLE001
-            return None
-        finally:
-            local_apk.unlink(missing_ok=True)
+                continue
+            finally:
+                local_apk.unlink(missing_ok=True)
+
+        missing_marker.touch(exist_ok=True)
+        return None
 
     def _pick_best_icon_file(self, apk_file: Path) -> str | None:
         try:
             with zipfile.ZipFile(apk_file) as zf:
                 names = zf.namelist()
+                infos = {info.filename: info.file_size for info in zf.infolist()}
         except Exception:  # noqa: BLE001
             return None
 
-        candidates: list[str] = []
+        base_candidates: list[str] = []
         for name in names:
             low = name.lower()
             if not low.startswith("res/"):
@@ -115,13 +132,20 @@ class AppManagerModule:
                 continue
             if "/mipmap" not in low and "/drawable" not in low:
                 continue
-            if "ic_launcher" in low or "app_icon" in low or re.search(r"/icon(_|\\.|$)", low):
-                candidates.append(name)
+            base_candidates.append(name)
 
-        if not candidates:
+        if not base_candidates:
             return None
 
-        def score(path: str) -> tuple[int, int, int]:
+        keyword_candidates = [
+            name
+            for name in base_candidates
+            if any(token in name.lower() for token in ("launcher", "icon", "logo", "app"))
+            or re.search(r"/ic_[a-z0-9_]+", name.lower())
+        ]
+        candidates = keyword_candidates or base_candidates
+
+        def score(path: str) -> tuple[int, int, int, int]:
             low = path.lower()
             density_score = 0
             for marker, value in (
@@ -136,8 +160,16 @@ class AppManagerModule:
                     density_score = value
                     break
             launcher_bonus = 3 if "ic_launcher" in low else 0
+            keyword_bonus = 2 if any(token in low for token in ("launcher", "icon", "logo")) else 0
             mipmap_bonus = 1 if "/mipmap" in low else 0
-            return (density_score + launcher_bonus + mipmap_bonus, len(path), 1 if low.endswith(".png") else 0)
+            extension_bonus = 1 if low.endswith(".png") else 0
+            size_bonus = int(min(infos.get(path, 0), 2_000_000) / 4096)
+            return (
+                density_score + launcher_bonus + keyword_bonus + mipmap_bonus,
+                size_bonus,
+                extension_bonus,
+                len(path),
+            )
 
         candidates.sort(key=score, reverse=True)
         return candidates[0]

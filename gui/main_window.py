@@ -5,6 +5,8 @@ import json
 import logging
 import os
 import re
+import shlex
+import shutil
 import signal
 import time
 from threading import Event
@@ -14,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QObject, QProcess, QPropertyAnimation, QSize, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QColor, QIcon, QKeySequence, QPixmap, QShortcut, QTextCursor, QTextDocument
+from PySide6.QtGui import QColor, QIcon, QImage, QKeySequence, QPixmap, QShortcut, QTextCursor, QTextDocument
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtPrintSupport import QPrinter
@@ -34,6 +36,8 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QListView,
+    QScrollArea,
+    QDialog,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -95,6 +99,13 @@ class MainWindow(QMainWindow):
         self._last_system_info: dict[str, str] = {}
         self.logcat_process: QProcess | None = None
         self.record_process: QProcess | None = None
+        self.scrcpy_process: QProcess | None = None
+        self.scrcpy_processes: dict[str, QProcess] = {}
+        self.qr_pair_process: QProcess | None = None
+        self._qr_pair_buffer = ""
+        self._qr_service_name = ""
+        self._qr_password = ""
+        self._qr_popup: QDialog | None = None
         self._record_remote_file: str | None = None
         self._record_local_file: Path | None = None
         self._record_serial: str | None = None
@@ -114,6 +125,12 @@ class MainWindow(QMainWindow):
         self._app_icon_cache_dir = self.base_dir / "resources" / "icons" / "app_cache"
         self._app_icon_cache_dir.mkdir(parents=True, exist_ok=True)
         self._app_icon_pending: set[str] = set()
+        self._app_icon_queue: list[str] = []
+        self._app_icon_max_pending = 6
+        self._app_icon_total = 0
+        self._app_icon_done = 0
+        self._app_icon_success = 0
+        self._app_icon_generation = 0
 
         self.setWindowTitle("ADB Manager Pro")
         self.resize(1440, 920)
@@ -161,11 +178,15 @@ class MainWindow(QMainWindow):
         self.sidebar_toggle_btn = QPushButton("☰")
         self.refresh_btn = QPushButton("Actualiser")
         self.connect_wifi_btn = QPushButton("Connecter WiFi")
+        self.pair_wifi_btn = QPushButton("Pairing WiFi")
+        self.pair_qr_btn = QPushButton("Pairing QR")
         self.scan_wifi_btn = QPushButton("Scanner WiFi")
         self.accent_btn = QPushButton("Accent")
         self.sidebar_toggle_btn.setObjectName("ghostBtn")
         self.refresh_btn.setObjectName("successBtn")
         self.connect_wifi_btn.setObjectName("ghostBtn")
+        self.pair_wifi_btn.setObjectName("ghostBtn")
+        self.pair_qr_btn.setObjectName("ghostBtn")
         self.scan_wifi_btn.setObjectName("ghostBtn")
         self.accent_btn.setObjectName("ghostBtn")
         self.sidebar_toggle_btn.setMaximumWidth(44)
@@ -191,6 +212,8 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.device_box)
         toolbar.addWidget(self.refresh_btn)
         toolbar.addWidget(self.connect_wifi_btn)
+        toolbar.addWidget(self.pair_wifi_btn)
+        toolbar.addWidget(self.pair_qr_btn)
         toolbar.addWidget(self.scan_wifi_btn)
         toolbar.addWidget(self.accent_btn)
         toolbar.addWidget(self.quick_command_input, 1)
@@ -215,7 +238,7 @@ class MainWindow(QMainWindow):
         sidebar_layout.setSpacing(8)
         self.sidebar_title = QLabel("Navigation")
         self.sidebar_title.setObjectName("sidebarTitle")
-        self.shortcut_hint = QLabel("Ctrl+1..8 onglets  •  Ctrl+B sidebar  •  Ctrl+K commandes")
+        self.shortcut_hint = QLabel("Ctrl+1..9 onglets  •  Ctrl+B sidebar  •  Ctrl+K commandes")
         self.shortcut_hint.setObjectName("shortcutHint")
         self.nav_sidebar = QListWidget()
         self.nav_sidebar.setObjectName("navSidebar")
@@ -237,6 +260,7 @@ class MainWindow(QMainWindow):
         self._build_system_tab()
         self._build_automation_tab()
         self._build_debug_tab()
+        self._build_remote_tab()
         self._build_backup_tab()
         self._build_captures_tab()
         self._set_tab_icons()
@@ -248,6 +272,8 @@ class MainWindow(QMainWindow):
 
         self.refresh_btn.clicked.connect(self._manual_refresh)
         self.connect_wifi_btn.clicked.connect(self._wifi_connect_dialog)
+        self.pair_wifi_btn.clicked.connect(self._wifi_pair_dialog)
+        self.pair_qr_btn.clicked.connect(self._wifi_pair_qr_dialog)
         self.scan_wifi_btn.clicked.connect(self._scan_wifi_dialog)
         self.accent_btn.clicked.connect(self._choose_accent_color)
         self.theme_box.currentTextChanged.connect(self._apply_theme)
@@ -485,15 +511,18 @@ class MainWindow(QMainWindow):
         self.apps_install_btn = QPushButton("Installer APK")
         self.apps_uninstall_btn = QPushButton("Desinstaller")
         self.apps_clear_btn = QPushButton("Nettoyer data")
+        self.apps_fetch_icons_btn = QPushButton("Recuperer icones")
         self.apps_refresh_btn.setObjectName("successBtn")
         self.apps_install_btn.setObjectName("successBtn")
         self.apps_uninstall_btn.setObjectName("dangerBtn")
         self.apps_clear_btn.setObjectName("ghostBtn")
+        self.apps_fetch_icons_btn.setObjectName("ghostBtn")
         controls.addWidget(self.apps_scope)
         controls.addWidget(self.apps_refresh_btn)
         controls.addWidget(self.apps_install_btn)
         controls.addWidget(self.apps_uninstall_btn)
         controls.addWidget(self.apps_clear_btn)
+        controls.addWidget(self.apps_fetch_icons_btn)
         controls.addStretch()
         layout.addLayout(controls)
 
@@ -515,6 +544,7 @@ class MainWindow(QMainWindow):
         self.apps_install_btn.clicked.connect(self._install_apk)
         self.apps_uninstall_btn.clicked.connect(self._uninstall_app)
         self.apps_clear_btn.clicked.connect(self._clear_app_data)
+        self.apps_fetch_icons_btn.clicked.connect(self._fetch_all_app_icons)
         self.apps_list.currentItemChanged.connect(self._on_apps_item_changed)
 
     def _build_system_tab(self) -> None:
@@ -805,6 +835,238 @@ class MainWindow(QMainWindow):
         self.batch_stop_on_error.toggled.connect(self._save_batch_options)
         self.command_catalog.itemDoubleClicked.connect(self._run_catalog_item)
         self.command_catalog.currentItemChanged.connect(self._on_command_selected)
+
+    def _build_remote_tab(self) -> None:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+
+        center_group = QGroupBox("Device Control Center")
+        center_group.setObjectName("panelCard")
+        center_layout = QVBoxLayout(center_group)
+        center_layout.setContentsMargins(10, 10, 10, 10)
+        center_layout.setSpacing(8)
+        center_head = QHBoxLayout()
+        self.remote_center_refresh_btn = QPushButton("Rafraichir cartes")
+        self.remote_center_refresh_btn.setObjectName("ghostBtn")
+        self.remote_center_summary = QLabel("0 appareil")
+        self.remote_center_summary.setObjectName("deviceBadge")
+        center_head.addWidget(self.remote_center_refresh_btn)
+        center_head.addStretch()
+        center_head.addWidget(self.remote_center_summary)
+        center_layout.addLayout(center_head)
+
+        self.remote_center_scroll = QScrollArea()
+        self.remote_center_scroll.setWidgetResizable(True)
+        self.remote_center_scroll.setObjectName("panelCard")
+        self.remote_center_container = QWidget()
+        self.remote_center_grid = QGridLayout(self.remote_center_container)
+        self.remote_center_grid.setContentsMargins(4, 4, 4, 4)
+        self.remote_center_grid.setHorizontalSpacing(10)
+        self.remote_center_grid.setVerticalSpacing(10)
+        self.remote_center_scroll.setWidget(self.remote_center_container)
+        self.remote_center_scroll.setMinimumHeight(210)
+        center_layout.addWidget(self.remote_center_scroll)
+        layout.addWidget(center_group)
+
+        scrcpy_group = QGroupBox("Remote Scrcpy")
+        scrcpy_group.setObjectName("panelCard")
+        scrcpy_layout = QVBoxLayout(scrcpy_group)
+        scrcpy_layout.setContentsMargins(10, 10, 10, 10)
+        scrcpy_layout.setSpacing(8)
+
+        top = QHBoxLayout()
+        top.addWidget(QLabel("Cible"))
+        self.remote_device_box = QComboBox()
+        self.remote_device_box.setMinimumWidth(300)
+        self.remote_device_box.addItem("Aucun appareil", "")
+        top.addWidget(self.remote_device_box)
+        top.addWidget(QLabel("scrcpy"))
+        self.scrcpy_path_input = QLineEdit(str(self.config.get("app.scrcpy_bin", "scrcpy")))
+        self.scrcpy_path_input.setPlaceholderText("Binaire scrcpy (ex: scrcpy ou /usr/bin/scrcpy)")
+        self.scrcpy_detect_btn = QPushButton("Verifier")
+        self.scrcpy_detect_btn.setObjectName("ghostBtn")
+        self.scrcpy_start_btn = QPushButton("Start Remote")
+        self.scrcpy_start_btn.setObjectName("successBtn")
+        self.scrcpy_start_all_btn = QPushButton("Start All")
+        self.scrcpy_start_all_btn.setObjectName("successBtn")
+        self.scrcpy_stop_btn = QPushButton("Stop Remote")
+        self.scrcpy_stop_btn.setObjectName("dangerBtn")
+        self.scrcpy_stop_all_btn = QPushButton("Stop All")
+        self.scrcpy_stop_all_btn.setObjectName("dangerBtn")
+        self.scrcpy_stop_btn.setEnabled(False)
+        self.scrcpy_stop_all_btn.setEnabled(False)
+        top.addWidget(self.scrcpy_path_input, 1)
+        top.addWidget(self.scrcpy_detect_btn)
+        top.addWidget(self.scrcpy_start_btn)
+        top.addWidget(self.scrcpy_start_all_btn)
+        top.addWidget(self.scrcpy_stop_btn)
+        top.addWidget(self.scrcpy_stop_all_btn)
+        scrcpy_layout.addLayout(top)
+
+        opts = QHBoxLayout()
+        opts.setSpacing(8)
+        opts.addWidget(QLabel("Bitrate(M)"))
+        self.scrcpy_bitrate = QSpinBox()
+        self.scrcpy_bitrate.setRange(1, 80)
+        self.scrcpy_bitrate.setValue(int(self.config.get("remote.scrcpy_bitrate_m", 12)))
+        opts.addWidget(self.scrcpy_bitrate)
+        opts.addWidget(QLabel("Max-size"))
+        self.scrcpy_max_size = QSpinBox()
+        self.scrcpy_max_size.setRange(0, 4096)
+        self.scrcpy_max_size.setValue(int(self.config.get("remote.scrcpy_max_size", 1280)))
+        self.scrcpy_max_size.setSpecialValueText("auto")
+        opts.addWidget(self.scrcpy_max_size)
+        opts.addWidget(QLabel("FPS"))
+        self.scrcpy_max_fps = QSpinBox()
+        self.scrcpy_max_fps.setRange(0, 120)
+        self.scrcpy_max_fps.setValue(int(self.config.get("remote.scrcpy_max_fps", 60)))
+        self.scrcpy_max_fps.setSpecialValueText("auto")
+        opts.addWidget(self.scrcpy_max_fps)
+        opts.addStretch()
+        scrcpy_layout.addLayout(opts)
+
+        flags = QHBoxLayout()
+        flags.setSpacing(8)
+        self.scrcpy_no_audio = QCheckBox("No audio")
+        self.scrcpy_no_audio.setChecked(bool(self.config.get("remote.scrcpy_no_audio", True)))
+        self.scrcpy_fullscreen = QCheckBox("Fullscreen")
+        self.scrcpy_fullscreen.setChecked(bool(self.config.get("remote.scrcpy_fullscreen", False)))
+        self.scrcpy_always_on_top = QCheckBox("Always on top")
+        self.scrcpy_always_on_top.setChecked(bool(self.config.get("remote.scrcpy_always_on_top", False)))
+        self.scrcpy_turn_screen_off = QCheckBox("Turn screen off")
+        self.scrcpy_turn_screen_off.setChecked(bool(self.config.get("remote.scrcpy_turn_screen_off", False)))
+        self.scrcpy_stay_awake = QCheckBox("Stay awake")
+        self.scrcpy_stay_awake.setChecked(bool(self.config.get("remote.scrcpy_stay_awake", False)))
+        self.scrcpy_show_touches = QCheckBox("Show touches")
+        self.scrcpy_show_touches.setChecked(bool(self.config.get("remote.scrcpy_show_touches", False)))
+        self.scrcpy_no_control = QCheckBox("View only")
+        self.scrcpy_no_control.setChecked(bool(self.config.get("remote.scrcpy_no_control", False)))
+        for w in (
+            self.scrcpy_no_audio,
+            self.scrcpy_fullscreen,
+            self.scrcpy_always_on_top,
+            self.scrcpy_turn_screen_off,
+            self.scrcpy_stay_awake,
+            self.scrcpy_show_touches,
+            self.scrcpy_no_control,
+        ):
+            flags.addWidget(w)
+        flags.addStretch()
+        scrcpy_layout.addLayout(flags)
+
+        extra_row = QHBoxLayout()
+        extra_row.addWidget(QLabel("Args extra"))
+        self.scrcpy_extra_args = QLineEdit(str(self.config.get("remote.scrcpy_extra_args", "")))
+        self.scrcpy_extra_args.setPlaceholderText("Ex: --prefer-text --window-borderless")
+        extra_row.addWidget(self.scrcpy_extra_args, 1)
+        self.scrcpy_status_label = QLabel("Etat: inactif")
+        self.scrcpy_status_label.setObjectName("deviceBadge")
+        extra_row.addWidget(self.scrcpy_status_label)
+        scrcpy_layout.addLayout(extra_row)
+        layout.addWidget(scrcpy_group)
+
+        actions_group = QGroupBox("Actions ADB (fallback tactile/clavier)")
+        actions_group.setObjectName("panelCard")
+        actions_layout = QVBoxLayout(actions_group)
+        actions_layout.setContentsMargins(10, 10, 10, 10)
+        actions_layout.setSpacing(8)
+
+        scope_row = QHBoxLayout()
+        scope_row.addWidget(QLabel("Cible actions"))
+        self.remote_action_scope_box = QComboBox()
+        self.remote_action_scope_box.addItem("Appareil cible", "selected")
+        self.remote_action_scope_box.addItem("Appareil actif (top bar)", "active")
+        self.remote_action_scope_box.addItem("Selection multiple", "checked")
+        self.remote_action_scope_box.addItem("Tous les appareils", "all")
+        scope_saved = str(self.config.get("remote.actions_scope", "selected"))
+        scope_idx = self.remote_action_scope_box.findData(scope_saved)
+        self.remote_action_scope_box.setCurrentIndex(scope_idx if scope_idx >= 0 else 0)
+        scope_row.addWidget(self.remote_action_scope_box)
+        self.remote_targets_select_all_btn = QPushButton("Tout cocher")
+        self.remote_targets_select_all_btn.setObjectName("ghostBtn")
+        self.remote_targets_clear_btn = QPushButton("Vider")
+        self.remote_targets_clear_btn.setObjectName("ghostBtn")
+        scope_row.addWidget(self.remote_targets_select_all_btn)
+        scope_row.addWidget(self.remote_targets_clear_btn)
+        scope_row.addStretch()
+        actions_layout.addLayout(scope_row)
+
+        self.remote_targets_list = QListWidget()
+        self.remote_targets_list.setObjectName("remoteTargetsList")
+        self.remote_targets_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.remote_targets_list.setMaximumHeight(112)
+        self.remote_targets_list.setToolTip("Appareils cibles quand le mode 'Selection multiple' est active.")
+        actions_layout.addWidget(self.remote_targets_list)
+
+        nav_row = QHBoxLayout()
+        self.remote_back_btn = QPushButton("Back")
+        self.remote_home_btn = QPushButton("Home")
+        self.remote_recent_btn = QPushButton("Recents")
+        self.remote_power_btn = QPushButton("Power")
+        self.remote_vol_up_btn = QPushButton("Vol+")
+        self.remote_vol_down_btn = QPushButton("Vol-")
+        self.remote_notif_btn = QPushButton("Notifications")
+        self.remote_quick_settings_btn = QPushButton("QuickSettings")
+        for b in (
+            self.remote_back_btn,
+            self.remote_home_btn,
+            self.remote_recent_btn,
+            self.remote_power_btn,
+            self.remote_vol_up_btn,
+            self.remote_vol_down_btn,
+            self.remote_notif_btn,
+            self.remote_quick_settings_btn,
+        ):
+            b.setObjectName("ghostBtn")
+            nav_row.addWidget(b)
+        nav_row.addStretch()
+        actions_layout.addLayout(nav_row)
+
+        input_row = QHBoxLayout()
+        self.remote_text_input = QLineEdit()
+        self.remote_text_input.setPlaceholderText("Texte a envoyer (input text)")
+        self.remote_send_text_btn = QPushButton("Envoyer texte")
+        self.remote_send_text_btn.setObjectName("successBtn")
+        self.remote_wakeup_unlock_btn = QPushButton("Wake+Unlock")
+        self.remote_wakeup_unlock_btn.setObjectName("ghostBtn")
+        input_row.addWidget(self.remote_text_input, 1)
+        input_row.addWidget(self.remote_send_text_btn)
+        input_row.addWidget(self.remote_wakeup_unlock_btn)
+        actions_layout.addLayout(input_row)
+
+        self.remote_log_output = QTextEdit()
+        self.remote_log_output.setReadOnly(True)
+        self.remote_log_output.setPlaceholderText("Logs remote scrcpy/ADB...")
+        self.remote_log_output.setMaximumHeight(190)
+        actions_layout.addWidget(self.remote_log_output)
+        layout.addWidget(actions_group)
+
+        self.tabs.addTab(tab, "Remote")
+
+        self.remote_center_refresh_btn.clicked.connect(self._refresh_remote_control_center)
+        self.scrcpy_detect_btn.clicked.connect(self._detect_scrcpy)
+        self.scrcpy_start_btn.clicked.connect(self._start_scrcpy_remote)
+        self.scrcpy_start_all_btn.clicked.connect(self._start_scrcpy_remote_all)
+        self.scrcpy_stop_btn.clicked.connect(self._stop_scrcpy_remote)
+        self.scrcpy_stop_all_btn.clicked.connect(self._stop_all_scrcpy_remote)
+        self.remote_action_scope_box.currentIndexChanged.connect(self._save_remote_action_scope)
+        self.remote_targets_select_all_btn.clicked.connect(lambda: self._toggle_all_remote_targets(True))
+        self.remote_targets_clear_btn.clicked.connect(lambda: self._toggle_all_remote_targets(False))
+        self.remote_targets_list.itemChanged.connect(self._save_remote_action_scope)
+        self.remote_back_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_BACK"))
+        self.remote_home_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_HOME"))
+        self.remote_recent_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_APP_SWITCH"))
+        self.remote_power_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_POWER"))
+        self.remote_vol_up_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_VOLUME_UP"))
+        self.remote_vol_down_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_VOLUME_DOWN"))
+        self.remote_notif_btn.clicked.connect(lambda: self._remote_shell("cmd statusbar expand-notifications"))
+        self.remote_quick_settings_btn.clicked.connect(lambda: self._remote_shell("cmd statusbar expand-settings"))
+        self.remote_send_text_btn.clicked.connect(self._remote_send_text)
+        self.remote_text_input.returnPressed.connect(self._remote_send_text)
+        self.remote_wakeup_unlock_btn.clicked.connect(self._remote_wakeup_unlock)
+        self._refresh_remote_targets_list()
+        self._refresh_remote_control_center()
 
     def _save_command_options(self) -> None:
         self.config.set("ui.confirm_critical_commands", bool(self.confirm_critical_box.isChecked()))
@@ -1159,6 +1421,433 @@ class MainWindow(QMainWindow):
 
         self._refresh_captures()
 
+    def _resolve_scrcpy_bin(self) -> str | None:
+        raw = self.scrcpy_path_input.text().strip() if hasattr(self, "scrcpy_path_input") else "scrcpy"
+        if not raw:
+            raw = "scrcpy"
+        self.config.set("app.scrcpy_bin", raw)
+        self.config.save()
+        if Path(raw).exists():
+            return raw
+        found = shutil.which(raw)
+        return found
+
+    def _detect_scrcpy(self) -> None:
+        resolved = self._resolve_scrcpy_bin()
+        if resolved:
+            self.scrcpy_status_label.setText(f"Etat: disponible ({Path(resolved).name})")
+            Toast(self, f"scrcpy detecte: {resolved}")
+        else:
+            self.scrcpy_status_label.setText("Etat: scrcpy introuvable")
+            QMessageBox.warning(
+                self,
+                "scrcpy manquant",
+                "scrcpy n'est pas installe ou introuvable dans PATH.\n"
+                "Installe-le puis renseigne le binaire.",
+            )
+
+    def _save_scrcpy_options(self) -> None:
+        self.config.set("remote.scrcpy_bitrate_m", int(self.scrcpy_bitrate.value()))
+        self.config.set("remote.scrcpy_max_size", int(self.scrcpy_max_size.value()))
+        self.config.set("remote.scrcpy_max_fps", int(self.scrcpy_max_fps.value()))
+        self.config.set("remote.scrcpy_no_audio", bool(self.scrcpy_no_audio.isChecked()))
+        self.config.set("remote.scrcpy_fullscreen", bool(self.scrcpy_fullscreen.isChecked()))
+        self.config.set("remote.scrcpy_always_on_top", bool(self.scrcpy_always_on_top.isChecked()))
+        self.config.set("remote.scrcpy_turn_screen_off", bool(self.scrcpy_turn_screen_off.isChecked()))
+        self.config.set("remote.scrcpy_stay_awake", bool(self.scrcpy_stay_awake.isChecked()))
+        self.config.set("remote.scrcpy_show_touches", bool(self.scrcpy_show_touches.isChecked()))
+        self.config.set("remote.scrcpy_no_control", bool(self.scrcpy_no_control.isChecked()))
+        self.config.set("remote.scrcpy_extra_args", str(self.scrcpy_extra_args.text().strip()))
+        self.config.save()
+
+    def _save_remote_action_scope(self, *_args) -> None:
+        scope = "selected"
+        if hasattr(self, "remote_action_scope_box"):
+            scope = str(self.remote_action_scope_box.currentData() or "selected")
+        checked_serials: list[str] = []
+        if hasattr(self, "remote_targets_list"):
+            for i in range(self.remote_targets_list.count()):
+                item = self.remote_targets_list.item(i)
+                if item is not None and item.checkState() == Qt.CheckState.Checked:
+                    serial = str(item.data(Qt.ItemDataRole.UserRole) or "").strip()
+                    if serial:
+                        checked_serials.append(serial)
+        self.config.set("remote.actions_scope", scope)
+        self.config.set("remote.actions_checked", checked_serials)
+        self.config.save()
+
+    def _refresh_remote_device_box(self) -> None:
+        if not hasattr(self, "remote_device_box"):
+            return
+        current = str(self.remote_device_box.currentData() or "")
+        self.remote_device_box.blockSignals(True)
+        self.remote_device_box.clear()
+        for dev in self._last_devices:
+            self.remote_device_box.addItem(f"{dev.serial} ({dev.model})", dev.serial)
+        if self.remote_device_box.count() == 0:
+            self.remote_device_box.addItem("Aucun appareil", "")
+        if current:
+            idx = self.remote_device_box.findData(current)
+            if idx >= 0:
+                self.remote_device_box.setCurrentIndex(idx)
+        self.remote_device_box.blockSignals(False)
+
+    def _refresh_remote_targets_list(self) -> None:
+        if not hasattr(self, "remote_targets_list"):
+            return
+        saved = self.config.get("remote.actions_checked", [])
+        saved_set: set[str] = set()
+        if isinstance(saved, list):
+            saved_set = {str(x).strip() for x in saved if str(x).strip()}
+        self.remote_targets_list.blockSignals(True)
+        self.remote_targets_list.clear()
+        for dev in self._last_devices:
+            item = QListWidgetItem(f"{dev.serial} ({dev.model})")
+            item.setData(Qt.ItemDataRole.UserRole, dev.serial)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if dev.serial in saved_set else Qt.CheckState.Unchecked)
+            self.remote_targets_list.addItem(item)
+        self.remote_targets_list.blockSignals(False)
+
+    def _toggle_all_remote_targets(self, checked: bool) -> None:
+        if not hasattr(self, "remote_targets_list"):
+            return
+        state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+        self.remote_targets_list.blockSignals(True)
+        for i in range(self.remote_targets_list.count()):
+            item = self.remote_targets_list.item(i)
+            if item is not None:
+                item.setCheckState(state)
+        self.remote_targets_list.blockSignals(False)
+        self._save_remote_action_scope()
+
+    def _selected_remote_target_serials(self) -> list[str]:
+        out: list[str] = []
+        if not hasattr(self, "remote_targets_list"):
+            return out
+        for i in range(self.remote_targets_list.count()):
+            item = self.remote_targets_list.item(i)
+            if item is None or item.checkState() != Qt.CheckState.Checked:
+                continue
+            serial = str(item.data(Qt.ItemDataRole.UserRole) or "").strip()
+            if serial:
+                out.append(serial)
+        return out
+
+    def _remote_selected_serial(self) -> str | None:
+        if not hasattr(self, "remote_device_box"):
+            return self._selected_serial()
+        serial = str(self.remote_device_box.currentData() or "").strip()
+        if serial:
+            return serial
+        return self._selected_serial()
+
+    def _remote_target_serials_for_actions(self) -> list[str]:
+        scope = "selected"
+        if hasattr(self, "remote_action_scope_box"):
+            scope = str(self.remote_action_scope_box.currentData() or "selected")
+        if scope == "all":
+            return [d.serial for d in self._last_devices]
+        if scope == "active":
+            serial = self._selected_serial()
+            return [serial] if serial else []
+        if scope == "checked":
+            serials = self._selected_remote_target_serials()
+            return serials if serials else []
+        serial = self._remote_selected_serial()
+        return [serial] if serial else []
+
+    def _update_scrcpy_status_ui(self) -> None:
+        count = len(self.scrcpy_processes)
+        if count == 0:
+            self.scrcpy_status_label.setText("Etat: inactif")
+            self.scrcpy_stop_btn.setEnabled(False)
+            self.scrcpy_stop_all_btn.setEnabled(False)
+            self.scrcpy_start_btn.setEnabled(True)
+            self.scrcpy_start_all_btn.setEnabled(True)
+            return
+        running = ", ".join(list(self.scrcpy_processes.keys())[:3])
+        if count > 3:
+            running += ", ..."
+        self.scrcpy_status_label.setText(f"Etat: actif ({count}) {running}")
+        self.scrcpy_stop_btn.setEnabled(True)
+        self.scrcpy_stop_all_btn.setEnabled(True)
+        self.scrcpy_start_btn.setEnabled(True)
+        self.scrcpy_start_all_btn.setEnabled(True)
+
+    def _start_scrcpy_remote(self) -> None:
+        serial = self._remote_selected_serial()
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        if serial in self.scrcpy_processes:
+            Toast(self, f"Remote scrcpy deja actif sur {serial}")
+            return
+        resolved = self._resolve_scrcpy_bin()
+        if not resolved:
+            self._detect_scrcpy()
+            return
+
+        self._save_scrcpy_options()
+        args: list[str] = ["-s", serial, "--window-title", f"ADB Manager Remote - {serial}"]
+        bitrate = int(self.scrcpy_bitrate.value())
+        max_size = int(self.scrcpy_max_size.value())
+        max_fps = int(self.scrcpy_max_fps.value())
+        if bitrate > 0:
+            args += ["--video-bit-rate", f"{bitrate}M"]
+        if max_size > 0:
+            args += ["--max-size", str(max_size)]
+        if max_fps > 0:
+            args += ["--max-fps", str(max_fps)]
+        if self.scrcpy_no_audio.isChecked():
+            args.append("--no-audio")
+        if self.scrcpy_fullscreen.isChecked():
+            args.append("--fullscreen")
+        if self.scrcpy_always_on_top.isChecked():
+            args.append("--always-on-top")
+        if self.scrcpy_turn_screen_off.isChecked():
+            args.append("--turn-screen-off")
+        if self.scrcpy_stay_awake.isChecked():
+            args.append("--stay-awake")
+        if self.scrcpy_show_touches.isChecked():
+            args.append("--show-touches")
+        if self.scrcpy_no_control.isChecked():
+            args.append("--no-control")
+        extra = self.scrcpy_extra_args.text().strip()
+        if extra:
+            try:
+                args += shlex.split(extra)
+            except ValueError:
+                Toast(self, "Args extra invalides")
+                return
+
+        proc = QProcess(self)
+        self.scrcpy_process = proc
+        self.scrcpy_processes[serial] = proc
+        proc.setProperty("serial", serial)
+        proc.setProgram(resolved)
+        proc.setArguments(args)
+        proc.readyReadStandardOutput.connect(self._consume_scrcpy_stdout)
+        proc.readyReadStandardError.connect(self._consume_scrcpy_stderr)
+        proc.finished.connect(self._on_scrcpy_finished)
+        proc.start()
+
+        self._update_scrcpy_status_ui()
+        self.remote_log_output.append(f"[scrcpy:{serial}] start: {resolved} {' '.join(args)}")
+
+    def _start_scrcpy_remote_all(self) -> None:
+        if not self._last_devices:
+            Toast(self, "Aucun appareil connecte")
+            return
+        for dev in self._last_devices:
+            if dev.serial in self.scrcpy_processes:
+                continue
+            if hasattr(self, "remote_device_box"):
+                idx = self.remote_device_box.findData(dev.serial)
+                if idx >= 0:
+                    self.remote_device_box.setCurrentIndex(idx)
+            self._start_scrcpy_remote()
+        self._update_scrcpy_status_ui()
+
+    def _stop_scrcpy_remote(self, silent: bool = False) -> None:
+        serial = self._remote_selected_serial()
+        proc = self.scrcpy_processes.pop(serial or "", None)
+        if proc is None and self.scrcpy_processes:
+            # Fallback: stop any running session if selected serial is not running.
+            serial, proc = next(iter(self.scrcpy_processes.items()))
+            self.scrcpy_processes.pop(serial, None)
+        if proc is None:
+            return
+        if self.scrcpy_process is proc:
+            self.scrcpy_process = None
+        if proc.state() != QProcess.ProcessState.NotRunning:
+            proc.terminate()
+            if not proc.waitForFinished(1200):
+                proc.kill()
+                proc.waitForFinished(800)
+        proc.deleteLater()
+        self._update_scrcpy_status_ui()
+        if not silent:
+            self.remote_log_output.append(f"[scrcpy:{serial}] stop")
+
+    def _stop_all_scrcpy_remote(self, silent: bool = False) -> None:
+        for serial in list(self.scrcpy_processes.keys()):
+            proc = self.scrcpy_processes.pop(serial, None)
+            if proc is None:
+                continue
+            if proc.state() != QProcess.ProcessState.NotRunning:
+                proc.terminate()
+                if not proc.waitForFinished(1200):
+                    proc.kill()
+                    proc.waitForFinished(800)
+            proc.deleteLater()
+            if not silent:
+                self.remote_log_output.append(f"[scrcpy:{serial}] stop")
+        self.scrcpy_process = None
+        self._update_scrcpy_status_ui()
+
+    def _consume_scrcpy_stdout(self) -> None:
+        proc = self.sender()
+        if not isinstance(proc, QProcess):
+            return
+        serial = str(proc.property("serial") or "?")
+        data = bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace").strip()
+        if data:
+            self.remote_log_output.append(f"[scrcpy:{serial}] {data}")
+
+    def _consume_scrcpy_stderr(self) -> None:
+        proc = self.sender()
+        if not isinstance(proc, QProcess):
+            return
+        serial = str(proc.property("serial") or "?")
+        data = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace").strip()
+        if data:
+            self.remote_log_output.append(f"[scrcpy:{serial}] {data}")
+
+    def _on_scrcpy_finished(self, _code: int, _status: QProcess.ExitStatus) -> None:
+        proc = self.sender()
+        serial = "?"
+        if isinstance(proc, QProcess):
+            serial = str(proc.property("serial") or "?")
+            self.scrcpy_processes.pop(serial, None)
+            if self.scrcpy_process is proc:
+                self.scrcpy_process = None
+        self._update_scrcpy_status_ui()
+        self.remote_log_output.append(f"[scrcpy:{serial}] termine")
+
+    def _remote_shell(self, shell_command: str) -> None:
+        serials = self._remote_target_serials_for_actions()
+        if not serials:
+            Toast(self, "Aucun appareil actif")
+            return
+
+        for serial in serials:
+            def done(result: CommandResult, s=serial) -> None:
+                self.bridge.command_done.emit(("remote_shell", {"serial": s, "result": result}))
+            self.adb.run_async(["shell", "sh", "-c", shell_command], serial=serial, callback=done)
+
+    def _remote_keyevent(self, keycode: str) -> None:
+        self._remote_shell(f"input keyevent {keycode}")
+
+    def _remote_send_text(self) -> None:
+        text = self.remote_text_input.text().strip()
+        if not text:
+            return
+        payload = text.replace(" ", "%s").replace('"', "")
+        self._remote_shell(f'input text "{payload}"')
+        self.remote_text_input.clear()
+
+    def _remote_wakeup_unlock(self) -> None:
+        self._remote_shell("input keyevent KEYCODE_WAKEUP")
+        self._remote_shell("input swipe 300 1000 300 500")
+
+    def _set_active_serial(self, serial: str) -> None:
+        if not serial:
+            return
+        idx = self.device_box.findData(serial) if hasattr(self, "device_box") else -1
+        if idx >= 0:
+            self.device_box.setCurrentIndex(idx)
+        if hasattr(self, "remote_device_box"):
+            ridx = self.remote_device_box.findData(serial)
+            if ridx >= 0:
+                self.remote_device_box.setCurrentIndex(ridx)
+
+    def _start_scrcpy_for_serial(self, serial: str) -> None:
+        self._set_active_serial(serial)
+        self._start_scrcpy_remote()
+
+    def _remote_shell_for_serial(self, serial: str, shell_command: str) -> None:
+        if not serial:
+            return
+
+        def done(result: CommandResult, s=serial) -> None:
+            self.bridge.command_done.emit(("remote_shell", {"serial": s, "result": result}))
+
+        self.adb.run_async(["shell", "sh", "-c", shell_command], serial=serial, callback=done)
+
+    def _capture_screen_for_serial(self, serial: str, open_captures_tab: bool = False) -> None:
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        captures_dir = self.base_dir / "captures"
+        captures_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_serial = re.sub(r"[^a-zA-Z0-9._-]", "_", serial)
+        local_file = captures_dir / f"capture_{safe_serial}_{stamp}.png"
+        remote_tmp = "/sdcard/__adb_manager_capture.png"
+
+        shot = self.adb.run(["shell", "screencap", "-p", remote_tmp], serial=serial)
+        if not shot.ok:
+            Toast(self, f"Capture echec {serial}: {shot.stderr}")
+            return
+        pull = self.adb.run(["pull", remote_tmp, str(local_file)], serial=serial)
+        self.adb.run(["shell", "rm", "-f", remote_tmp], serial=serial)
+        if pull.ok:
+            Toast(self, f"Capture {serial}: {local_file.name}")
+            self._refresh_captures(selected_file=local_file.name)
+            if open_captures_tab:
+                self.tabs.setCurrentWidget(self.captures_tab)
+        else:
+            Toast(self, f"Pull capture echec {serial}: {pull.stderr}")
+
+    def _clear_grid_layout(self, layout: QGridLayout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _refresh_remote_control_center(self) -> None:
+        if not hasattr(self, "remote_center_grid"):
+            return
+        self._clear_grid_layout(self.remote_center_grid)
+        devices = self._last_devices
+        self.remote_center_summary.setText(f"{len(devices)} appareil(s)")
+        if not devices:
+            empty = QLabel("Aucun appareil connecte")
+            empty.setObjectName("metricLabel")
+            self.remote_center_grid.addWidget(empty, 0, 0)
+            return
+
+        columns = 3
+        for idx, dev in enumerate(devices):
+            card = QWidget()
+            card.setObjectName("panelCard")
+            card_l = QVBoxLayout(card)
+            card_l.setContentsMargins(10, 10, 10, 10)
+            card_l.setSpacing(6)
+            title = QLabel(f"{dev.model or 'Android'}")
+            title.setObjectName("appTitle")
+            title.setStyleSheet("font-size:15px;")
+            card_l.addWidget(title)
+            card_l.addWidget(QLabel(f"Serial: {dev.serial}"))
+            card_l.addWidget(QLabel(f"Etat: {dev.state} | Android: {dev.android_version}"))
+            card_l.addWidget(QLabel(f"Transport: {dev.transport} | Root: {'yes' if dev.root else 'no'}"))
+
+            row = QHBoxLayout()
+            btn_active = QPushButton("Activer")
+            btn_scrcpy = QPushButton("Scrcpy")
+            btn_wake = QPushButton("Wake")
+            btn_shot = QPushButton("Shot")
+            btn_active.setObjectName("ghostBtn")
+            btn_scrcpy.setObjectName("successBtn")
+            btn_wake.setObjectName("ghostBtn")
+            btn_shot.setObjectName("ghostBtn")
+            btn_active.clicked.connect(lambda _=False, s=dev.serial: self._set_active_serial(s))
+            btn_scrcpy.clicked.connect(lambda _=False, s=dev.serial: self._start_scrcpy_for_serial(s))
+            btn_wake.clicked.connect(lambda _=False, s=dev.serial: self._remote_shell_for_serial(s, "input keyevent KEYCODE_WAKEUP"))
+            btn_shot.clicked.connect(lambda _=False, s=dev.serial: self._capture_screen_for_serial(s, open_captures_tab=False))
+            row.addWidget(btn_active)
+            row.addWidget(btn_scrcpy)
+            row.addWidget(btn_wake)
+            row.addWidget(btn_shot)
+            row.addStretch()
+            card_l.addLayout(row)
+
+            r = idx // columns
+            c = idx % columns
+            self.remote_center_grid.addWidget(card, r, c)
+
     def _setup_polling(self) -> None:
         self.device_manager.add_listener(lambda devices: self.bridge.device_list_updated.emit(devices))
         self.poll_timer = QTimer(self)
@@ -1196,6 +1885,7 @@ class MainWindow(QMainWindow):
             self.style().standardIcon(QStyle.StandardPixmap.SP_DesktopIcon),
             self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay),
             self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation),
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon),
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon),
         ]
@@ -1229,7 +1919,7 @@ class MainWindow(QMainWindow):
 
     def _setup_tab_shortcuts(self) -> None:
         self._tab_shortcuts.clear()
-        for idx in range(min(8, self.tabs.count())):
+        for idx in range(min(9, self.tabs.count())):
             shortcut = QShortcut(QKeySequence(f"Ctrl+{idx + 1}"), self)
             shortcut.activated.connect(lambda i=idx: self.tabs.setCurrentIndex(i))
             self._tab_shortcuts.append(shortcut)
@@ -1355,6 +2045,9 @@ class MainWindow(QMainWindow):
         self.device_box.clear()
         for dev in devices:
             self.device_box.addItem(f"{dev.serial} ({dev.model})", dev.serial)
+        self._refresh_remote_device_box()
+        self._refresh_remote_targets_list()
+        self._refresh_remote_control_center()
 
         self.device_table.setRowCount(len(devices))
         for row, dev in enumerate(devices):
@@ -1505,6 +2198,224 @@ class MainWindow(QMainWindow):
             self.device_manager.poll_async()
         else:
             Toast(self, f"Echec connexion {ip_text}:{port}")
+
+    def _wifi_pair_dialog(self) -> None:
+        host_port, ok = QInputDialog.getText(
+            self,
+            "Pairing WiFi ADB",
+            "Adresse pairing (depuis le telephone)\nFormat: IP:PORT (ex: 192.168.1.50:37199)",
+        )
+        if not ok or not host_port.strip():
+            return
+        host_port = host_port.strip()
+        if ":" not in host_port:
+            Toast(self, "Format invalide. Exemple: 192.168.1.50:37199")
+            return
+        host, port_text = host_port.rsplit(":", 1)
+        host = host.strip()
+        if not port_text.isdigit():
+            Toast(self, "Port pairing invalide")
+            return
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            Toast(self, "IP pairing invalide")
+            return
+
+        pair_code, ok = QInputDialog.getText(
+            self,
+            "Code de pairing",
+            "Code de pairing (6 chiffres) affiche sur le telephone",
+        )
+        if not ok or not pair_code.strip():
+            return
+        pair_code = pair_code.strip()
+        if not re.fullmatch(r"[0-9]{6}", pair_code):
+            Toast(self, "Code pairing invalide (attendu: 6 chiffres)")
+            return
+
+        self.statusBar().showMessage(f"Pairing en cours vers {host_port}...")
+        result = self.adb.run(["pair", host_port, pair_code], timeout=30)
+        if not result.ok:
+            msg = result.stderr or result.stdout or "Echec pairing"
+            QMessageBox.warning(self, "Pairing WiFi", f"Pairing echoue:\n{msg}")
+            return
+
+        connect_targets = self._discover_tls_connect_targets(prefer_host=host)
+        if connect_targets:
+            target = connect_targets[0]
+            connect_result = self.adb.run(["connect", target], timeout=20)
+            if connect_result.ok:
+                Toast(self, f"Pairing OK + connecte a {target}")
+            else:
+                Toast(self, f"Pairing OK mais echec connect {target}")
+        else:
+            Toast(self, "Pairing OK. Lance ensuite 'Connecter WiFi' avec l'IP:PORT de debug.")
+        self.device_manager.poll_async()
+
+    def _wifi_pair_qr_dialog(self) -> None:
+        tool = str(self.config.get("app.adb_qr_tool", "adb-connect-qr")).strip() or "adb-connect-qr"
+        fallback_venv = self.base_dir / ".venv" / "bin" / "adb-connect-qr"
+        resolved = shutil.which(tool) or (tool if Path(tool).exists() else "") or (str(fallback_venv) if fallback_venv.exists() else "")
+        if not resolved:
+            QMessageBox.information(
+                self,
+                "Pairing QR",
+                "Le helper QR n'est pas installe.\n\n"
+                "Installe-le dans ton environnement:\n"
+                "pip install adb-connect-qr\n\n"
+                "Puis relance l'application et clique 'Pairing QR'.",
+            )
+            return
+        if self.qr_pair_process is not None:
+            Toast(self, "Un pairing QR est deja en cours")
+            return
+
+        self.config.set("app.adb_qr_tool", tool)
+        self.config.save()
+        self._qr_pair_buffer = ""
+        self._qr_service_name = ""
+        self._qr_password = ""
+        self._close_qr_popup()
+
+        proc = QProcess(self)
+        self.qr_pair_process = proc
+        proc.setProgram(resolved)
+        proc.setArguments([])
+        proc.readyReadStandardOutput.connect(self._consume_qr_pair_stdout)
+        proc.readyReadStandardError.connect(self._consume_qr_pair_stderr)
+        proc.finished.connect(self._on_qr_pair_finished)
+        proc.start()
+
+        self.statusBar().showMessage("Pairing QR: en cours (scanne le QR sur ton telephone)")
+        if hasattr(self, "remote_log_output"):
+            self.remote_log_output.append("[pair-qr] start")
+            self.remote_log_output.append("Scanne le QR code graphique qui s'ouvre.")
+
+    def _close_qr_popup(self) -> None:
+        if self._qr_popup is not None:
+            self._qr_popup.close()
+            self._qr_popup.deleteLater()
+            self._qr_popup = None
+
+    def _qr_payload(self, service_name: str, password: str) -> str:
+        return f"WIFI:T:ADB;S:{service_name};P:{password};;"
+
+    def _render_qr_pixmap(self, payload: str, scale: int = 8, border: int = 4) -> QPixmap | None:
+        try:
+            import qrcode
+        except Exception:  # noqa: BLE001
+            return None
+        qr = qrcode.QRCode(border=border)
+        qr.add_data(payload)
+        qr.make(fit=True)
+        matrix = qr.get_matrix()
+        if not matrix:
+            return None
+        h = len(matrix)
+        w = len(matrix[0])
+        img = QImage(w * scale, h * scale, QImage.Format.Format_RGB32)
+        white = QColor("#ffffff").rgb()
+        black = QColor("#000000").rgb()
+        for y, row in enumerate(matrix):
+            for x, cell in enumerate(row):
+                color = black if cell else white
+                x0 = x * scale
+                y0 = y * scale
+                for yy in range(y0, y0 + scale):
+                    for xx in range(x0, x0 + scale):
+                        img.setPixel(xx, yy, color)
+        return QPixmap.fromImage(img)
+
+    def _show_qr_popup(self, service_name: str, password: str) -> None:
+        payload = self._qr_payload(service_name, password)
+        pix = self._render_qr_pixmap(payload, scale=8, border=4)
+        if pix is None:
+            return
+        self._close_qr_popup()
+        dialog = QDialog(self)
+        dialog.setWindowTitle("QR Pairing ADB")
+        dialog.setModal(False)
+        dialog.resize(420, 500)
+        lay = QVBoxLayout(dialog)
+        info = QLabel("Scanne ce QR sur le telephone:\nOptions developpeur > Debogage sans fil > Associer via QR")
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        qr_label = QLabel()
+        qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        qr_label.setPixmap(pix.scaled(360, 360, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation))
+        lay.addWidget(qr_label)
+        lay.addWidget(QLabel(f"Service: {service_name}"))
+        lay.addWidget(QLabel(f"Password: {password}"))
+        close_btn = QPushButton("Fermer")
+        close_btn.setObjectName("ghostBtn")
+        close_btn.clicked.connect(dialog.close)
+        lay.addWidget(close_btn)
+        dialog.show()
+        self._qr_popup = dialog
+
+    def _consume_qr_pair_stdout(self) -> None:
+        if self.qr_pair_process is None:
+            return
+        data = bytes(self.qr_pair_process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        if data:
+            self._qr_pair_buffer += data
+            if not self._qr_service_name:
+                m = re.search(r"Service Name:\s*([A-Za-z0-9._-]+)", self._qr_pair_buffer)
+                if m:
+                    self._qr_service_name = m.group(1).strip()
+            if not self._qr_password:
+                m = re.search(r"Password:\s*([A-Za-z0-9._-]+)", self._qr_pair_buffer)
+                if m:
+                    self._qr_password = m.group(1).strip()
+            if self._qr_service_name and self._qr_password and self._qr_popup is None:
+                self._show_qr_popup(self._qr_service_name, self._qr_password)
+        if data.strip() and hasattr(self, "remote_log_output"):
+            self.remote_log_output.append(data.rstrip())
+
+    def _consume_qr_pair_stderr(self) -> None:
+        if self.qr_pair_process is None:
+            return
+        data = bytes(self.qr_pair_process.readAllStandardError()).decode("utf-8", errors="replace")
+        if data.strip() and hasattr(self, "remote_log_output"):
+            self.remote_log_output.append(data.rstrip())
+
+    def _on_qr_pair_finished(self, code: int, _status: QProcess.ExitStatus) -> None:
+        self.qr_pair_process = None
+        self.statusBar().showMessage("Pairing QR termine")
+        self._close_qr_popup()
+        if hasattr(self, "remote_log_output"):
+            self.remote_log_output.append(f"[pair-qr] termine (code={code})")
+        self.device_manager.poll_async()
+
+    def _discover_tls_connect_targets(self, prefer_host: str | None = None) -> list[str]:
+        result = self.adb.run(["mdns", "services"], timeout=12)
+        if not result.ok or not result.stdout:
+            return []
+        targets: list[str] = []
+        for line in result.stdout.splitlines():
+            text = line.strip()
+            if not text or "_adb-tls-connect._tcp" not in text:
+                continue
+            match = re.search(r"(\d{1,3}(?:\.\d{1,3}){3}):(\d+)", text)
+            if not match:
+                continue
+            host = match.group(1)
+            port = match.group(2)
+            targets.append(f"{host}:{port}")
+        if prefer_host:
+            preferred = [t for t in targets if t.startswith(f"{prefer_host}:")]
+            others = [t for t in targets if not t.startswith(f"{prefer_host}:")]
+            targets = preferred + others
+        # unique preserving order
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for t in targets:
+            if t in seen:
+                continue
+            seen.add(t)
+            deduped.append(t)
+        return deduped
 
     def _scan_wifi_dialog(self) -> None:
         subnet, ok = QInputDialog.getText(self, "Scan WiFi ADB", "Prefixe subnet (ex: 192.168.1.)")
@@ -1731,7 +2642,13 @@ class MainWindow(QMainWindow):
         if not serial:
             return
         include_system = self.apps_scope.currentIndex() == 1
+        for marker in self._app_icon_cache_dir.glob("*.missing"):
+            marker.unlink(missing_ok=True)
         self._app_icon_pending.clear()
+        self._app_icon_queue.clear()
+        self._app_icon_total = 0
+        self._app_icon_done = 0
+        self._app_icon_success = 0
         self._run_in_worker(
             "apps_list",
             lambda: self.app_module.list_packages(serial, include_system=include_system),
@@ -1767,6 +2684,12 @@ class MainWindow(QMainWindow):
         self.apps_list.clear()
         default_icon = self._default_app_icon()
         serial = self._selected_serial()
+        self._app_icon_generation += 1
+        self._app_icon_queue.clear()
+        self._app_icon_pending.clear()
+        self._app_icon_total = 0
+        self._app_icon_done = 0
+        self._app_icon_success = 0
         for package in apps:
             item = QListWidgetItem(default_icon, self._display_name_for_package(package))
             item.setData(Qt.ItemDataRole.UserRole, package)
@@ -1775,16 +2698,53 @@ class MainWindow(QMainWindow):
             self.apps_list.addItem(item)
         if not serial:
             return
-        # Charge les logos en arriere-plan pour les premiers elements visibles.
-        for idx in range(min(36, self.apps_list.count())):
+        # Charge tous les logos progressivement sans bloquer l'UI.
+        for idx in range(self.apps_list.count()):
             row_item = self.apps_list.item(idx)
             if row_item is None:
                 continue
             package = str(row_item.data(Qt.ItemDataRole.UserRole) or "").strip()
             if package:
-                self._queue_app_icon_load(serial, package)
+                self._app_icon_queue.append(package)
+        self._app_icon_total = len(self._app_icon_queue)
+        self._pump_app_icon_queue(serial)
+
+    def _fetch_all_app_icons(self) -> None:
+        serial = self._selected_serial()
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        if self.apps_list.count() == 0:
+            Toast(self, "Charge d'abord les applications")
+            return
+        self._app_icon_generation += 1
+        for marker in self._app_icon_cache_dir.glob("*.missing"):
+            marker.unlink(missing_ok=True)
+        self._app_icon_pending.clear()
+        self._app_icon_queue.clear()
+        self._app_icon_total = 0
+        self._app_icon_done = 0
+        self._app_icon_success = 0
+        for idx in range(self.apps_list.count()):
+            item = self.apps_list.item(idx)
+            if item is None:
+                continue
+            package = str(item.data(Qt.ItemDataRole.UserRole) or "").strip()
+            if package:
+                self._app_icon_queue.append(package)
+        self._app_icon_total = len(self._app_icon_queue)
+        self.statusBar().showMessage(f"Recuperation icones: 0/{self._app_icon_total}")
+        self._pump_app_icon_queue(serial)
+
+    def _pump_app_icon_queue(self, serial: str) -> None:
+        if not serial:
+            return
+        while len(self._app_icon_pending) < self._app_icon_max_pending and self._app_icon_queue:
+            package = self._app_icon_queue.pop(0)
+            self._queue_app_icon_load(serial, package)
 
     def _queue_app_icon_load(self, serial: str, package: str) -> None:
+        generation = self._app_icon_generation
         key = f"{serial}:{package}"
         if key in self._app_icon_pending:
             return
@@ -1792,13 +2752,18 @@ class MainWindow(QMainWindow):
 
         def work() -> dict[str, str]:
             path = self.app_module.fetch_app_icon(serial, package, self._app_icon_cache_dir)
-            return {"serial": serial, "package": package, "icon_path": str(path) if path else ""}
+            return {
+                "serial": serial,
+                "package": package,
+                "icon_path": str(path) if path else "",
+                "generation": str(generation),
+            }
 
         def done(future) -> None:
             try:
                 payload = future.result()
             except Exception:  # noqa: BLE001
-                payload = {"serial": serial, "package": package, "icon_path": ""}
+                payload = {"serial": serial, "package": package, "icon_path": "", "generation": str(generation)}
             self.bridge.command_done.emit(("app_icon", payload))
 
         self.adb.executor.submit(work).add_done_callback(done)
@@ -1829,6 +2794,7 @@ class MainWindow(QMainWindow):
         package = str(current.data(Qt.ItemDataRole.UserRole) or "").strip()
         if package:
             self._queue_app_icon_load(serial, package)
+            self._pump_app_icon_queue(serial)
 
     def _install_apk(self) -> None:
         serial = self._selected_serial()
@@ -2701,6 +3667,19 @@ class MainWindow(QMainWindow):
         elif name == "terminal":
             output = result.stdout or result.stderr or "(aucune sortie)"
             self.terminal.append_line(output)
+        elif name == "remote_shell":
+            serial = "?"
+            command_result: CommandResult | None = None
+            if isinstance(result, dict):
+                serial = str(result.get("serial", "?"))
+                value = result.get("result")
+                if isinstance(value, CommandResult):
+                    command_result = value
+            elif isinstance(result, CommandResult):
+                command_result = result
+            if command_result is not None:
+                output = command_result.stdout or command_result.stderr or "(aucune sortie)"
+                self.remote_log_output.append(f"[adb:{serial}] {output}")
         elif name == "wifi_scan":
             hosts = result
             if not hosts:
@@ -2732,16 +3711,46 @@ class MainWindow(QMainWindow):
             serial = str(payload.get("serial", "")).strip()
             package = str(payload.get("package", "")).strip()
             icon_path = str(payload.get("icon_path", "")).strip()
+            try:
+                generation = int(str(payload.get("generation", "-1")))
+            except ValueError:
+                generation = -1
+            if generation != self._app_icon_generation:
+                return
+            counted = False
             if serial and package:
-                self._app_icon_pending.discard(f"{serial}:{package}")
+                key = f"{serial}:{package}"
+                if key in self._app_icon_pending:
+                    self._app_icon_pending.discard(key)
+                    self._app_icon_done += 1
+                    counted = True
             if package and icon_path:
                 self._update_app_icon(package, icon_path)
+                if counted:
+                    self._app_icon_success += 1
+            if self._app_icon_done > self._app_icon_total:
+                self._app_icon_done = self._app_icon_total
+            if self._app_icon_success > self._app_icon_done:
+                self._app_icon_success = self._app_icon_done
+            if self._app_icon_total > 0:
+                self.statusBar().showMessage(
+                    f"Icones apps: {self._app_icon_done}/{self._app_icon_total} "
+                    f"(ok={self._app_icon_success})"
+                )
+            if serial:
+                self._pump_app_icon_queue(serial)
         elif name == "worker":
             self._handle_worker_result(result if isinstance(result, dict) else {})
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self._stop_screen_record(silent=True)
         self._stop_live_logcat()
+        self._stop_all_scrcpy_remote(silent=True)
+        self._close_qr_popup()
+        if self.qr_pair_process is not None:
+            self.qr_pair_process.kill()
+            self.qr_pair_process.deleteLater()
+            self.qr_pair_process = None
         self.media_player.stop()
         self.config.save()
         self.device_manager.shutdown()

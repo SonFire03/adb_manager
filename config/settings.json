@@ -3,9 +3,11 @@
     "name": "ADB Manager Pro",
     "language": "fr",
     "theme": "dark",
-    "accent": "#2563eb",
+    "accent": "#99c1f1",
     "refresh_interval_ms": 2500,
-    "safe_mode": true
+    "safe_mode": true,
+    "scrcpy_bin": "scrcpy",
+    "adb_qr_tool": "adb-connect-qr"
   },
   "adb": {
     "binary": "adb",
@@ -39,5 +41,18 @@
     "batch_retry": 1,
     "batch_timeout_s": 120,
     "batch_stop_on_error": false
+  },
+  "remote": {
+    "scrcpy_bitrate_m": 12,
+    "scrcpy_max_size": 1280,
+    "scrcpy_max_fps": 60,
+    "scrcpy_no_audio": true,
+    "scrcpy_fullscreen": false,
+    "scrcpy_always_on_top": false,
+    "scrcpy_turn_screen_off": false,
+    "scrcpy_stay_awake": false,
+    "scrcpy_show_touches": false,
+    "scrcpy_no_control": false,
+    "scrcpy_extra_args": ""
   }
 }
