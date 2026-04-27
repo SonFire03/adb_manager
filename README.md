@@ -1,6 +1,8 @@
 # ADB Manager Pro
 
 [![CI](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml/badge.svg)](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml)
+[![Tests](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml/badge.svg?branch=main&label=tests)](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/SonFire03/adb_manager?display_name=tag)](https://github.com/SonFire03/adb_manager/releases)
 
 > Current focus: **v2.1 Maturity Update** (audit trail, snapshot compare, release engineering).
 

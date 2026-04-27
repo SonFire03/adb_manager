@@ -7,6 +7,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- 
+
+### Changed
+- 
+
+## [2.1.0] - 2026-04-27
+
+### Added
 - Session Reports / Audit Trail with session/event history, filters, JSON/HTML export.
 - Snapshot Compare with package/storage/system-state diff and JSON/HTML export.
 - Reports tab in UI to consult audit trails and compare snapshots.
