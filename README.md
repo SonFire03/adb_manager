@@ -282,33 +282,22 @@ Chaque commande expose:
 
 ## Captures d’écran
 
-Le dossier prévu est: `docs/screenshots/`
+Captures actuelles du projet (dossier `screen/`):
 
-Images attendues:
+![Screen 01](screen/screen-01.png)
+![Screen 02](screen/screen-02.png)
+![Screen 03](screen/screen-03.png)
+![Screen 04](screen/screen-04.png)
+![Screen 05](screen/screen-05.png)
+![Screen 06](screen/screen-06.png)
+![Screen 07](screen/screen-07.png)
+![Screen 08](screen/screen-08.png)
 
-- `dashboard.png`
-- `files.png`
-- `applications.png`
-- `system.png`
-- `debug.png`
-- `captures.png`
-
-### Génération automatique locale
-
-Depuis une machine avec session graphique:
+Génération automatique (optionnelle) de nouvelles captures:
 
 ```bash
 source .venv/bin/activate
 python tools/capture_ui_screenshots.py
-```
-
-Puis intégrer dans ce README:
-
-```md
-![Dashboard](docs/screenshots/dashboard.png)
-![Files](docs/screenshots/files.png)
-![Applications](docs/screenshots/applications.png)
-![Debug](docs/screenshots/debug.png)
 ```
 
 ---
