@@ -369,10 +369,10 @@ Le projet est préparé pour publication sans données personnelles.
 
 ### Avant publication (checklist)
 
-- [ ] Vérifier qu’aucun log runtime n’est tracké
-- [ ] Vérifier qu’aucun backup Android n’est présent
-- [ ] Vérifier que `config/history.db` est absent
-- [ ] Vérifier qu’aucune IP privée sensible n’est hardcodée
+- [x] Vérifier qu’aucun log runtime n’est tracké
+- [x] Vérifier qu’aucun backup Android n’est présent
+- [x] Vérifier que `config/history.db` est absent
+- [x] Vérifier qu’aucune IP privée sensible n’est hardcodée
 
 ---
 
