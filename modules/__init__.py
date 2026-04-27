@@ -7,6 +7,8 @@ from .device_inspector import DeviceInspectorModule
 from .device_profiles import DeviceProfile, DeviceProfilesModule
 from .file_manager import FileManagerModule
 from .health_check import HealthCheckModule
+from .session_audit import SessionAuditModule
+from .snapshot_compare import SnapshotCompareModule
 from .system_info import SystemInfoModule
 
 __all__ = [
@@ -18,5 +20,7 @@ __all__ = [
     "DeviceProfilesModule",
     "FileManagerModule",
     "HealthCheckModule",
+    "SessionAuditModule",
+    "SnapshotCompareModule",
     "SystemInfoModule",
 ]

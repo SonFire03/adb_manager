@@ -11,3 +11,5 @@ captures/
 *.db-journal
 *.swp
 resources/icons/app_cache/
+config/session_audit.db
+reports/

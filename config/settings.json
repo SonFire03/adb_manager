@@ -51,12 +51,17 @@
     "scrcpy_always_on_top": false,
     "scrcpy_turn_screen_off": false,
     "scrcpy_stay_awake": false,
-    "scrcpy_show_touches": false,
+    "scrcpy_show_touches": true,
     "scrcpy_no_control": false,
-    "scrcpy_extra_args": ""
+    "scrcpy_extra_args": "",
+    "actions_scope": "selected",
+    "actions_checked": []
   },
   "profiles": {
     "auto_load": true,
     "devices": []
+  },
+  "reports": {
+    "audit_ui_limit": 2000
   }
 }

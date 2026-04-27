@@ -15,6 +15,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from html import escape
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QEasingCurve, QObject, QProcess, QPropertyAnimation, QSize, Qt, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QIcon, QImage, QKeySequence, QPixmap, QShortcut, QTextCursor, QTextDocument
@@ -68,6 +69,8 @@ from modules.device_inspector import DeviceInspectorModule
 from modules.device_profiles import DeviceProfile, DeviceProfilesModule
 from modules.file_manager import FileManagerModule
 from modules.health_check import HealthCheckModule
+from modules.session_audit import SessionAuditModule
+from modules.snapshot_compare import SnapshotCompareModule
 from modules.system_info import SystemInfoModule
 
 logger = logging.getLogger(__name__)
@@ -96,6 +99,13 @@ class MainWindow(QMainWindow):
         self.automation_module = AutomationModule(self.adb, base_dir / "config")
         self.backup_module = BackupRestoreModule(self.adb, base_dir / "backups")
         self.profiles_module = DeviceProfilesModule(config)
+        self.audit_module = SessionAuditModule(base_dir / "config" / "session_audit.db")
+        self.snapshot_module = SnapshotCompareModule(
+            self.adb,
+            self.app_module,
+            self.inspector_module,
+            base_dir / "reports" / "snapshots",
+        )
 
         self.bridge = UiBridge()
         self.bridge.device_list_updated.connect(self._on_devices_updated)
@@ -148,9 +158,25 @@ class MainWindow(QMainWindow):
         self._app_analysis_pending: set[str] = set()
         self._app_analysis_max_pending = 3
         self._app_analysis_generation = 0
+        self._session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+        self._current_session_started = datetime.utcnow().isoformat() + "Z"
+        self._audit_last_events: list[dict[str, Any]] = []
+        self._snapshot_diff: dict[str, Any] = {}
+        self._snapshot_last_captured_file = ""
+        self._snapshot_name_to_path: dict[str, str] = {}
+        self._last_device_serials: set[str] = set()
 
         self.setWindowTitle("ADB Manager Pro")
         self.resize(1440, 920)
+        self.audit_module.start_session(self._session_id)
+        self.audit_module.log_event(
+            self._session_id,
+            event_type="session",
+            action="session_start",
+            status="ok",
+            message="Session started",
+            payload={"started_at": self._current_session_started},
+        )
         self._setup_ui()
         self._apply_theme(str(self.config.get("app.theme", "dark")))
         self._setup_polling()
@@ -294,6 +320,7 @@ class MainWindow(QMainWindow):
         self._build_remote_tab()
         self._build_backup_tab()
         self._build_captures_tab()
+        self._build_reports_tab()
         self._set_tab_icons()
         self._build_sidebar_nav()
         self._setup_tab_shortcuts()
@@ -1570,6 +1597,122 @@ class MainWindow(QMainWindow):
 
         self._refresh_captures()
 
+    def _build_reports_tab(self) -> None:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+
+        split = QSplitter(Qt.Orientation.Horizontal)
+        split.setChildrenCollapsible(False)
+
+        left = QGroupBox("Session Reports / Audit Trail")
+        left.setObjectName("panelCard")
+        left_l = QVBoxLayout(left)
+        left_l.setContentsMargins(10, 10, 10, 10)
+        left_l.setSpacing(8)
+        row1 = QHBoxLayout()
+        self.audit_session_box = QComboBox()
+        self.audit_refresh_btn = QPushButton("Refresh")
+        self.audit_export_json_btn = QPushButton("Export JSON")
+        self.audit_export_html_btn = QPushButton("Export HTML")
+        self.audit_refresh_btn.setObjectName("ghostBtn")
+        self.audit_export_json_btn.setObjectName("successBtn")
+        self.audit_export_html_btn.setObjectName("ghostBtn")
+        row1.addWidget(QLabel("Session"))
+        row1.addWidget(self.audit_session_box, 1)
+        row1.addWidget(self.audit_refresh_btn)
+        row1.addWidget(self.audit_export_json_btn)
+        row1.addWidget(self.audit_export_html_btn)
+        left_l.addLayout(row1)
+
+        filters = QHBoxLayout()
+        self.audit_device_filter = QComboBox()
+        self.audit_device_filter.addItem("Tous devices", "")
+        self.audit_type_filter = QComboBox()
+        self.audit_type_filter.addItems(
+            ["Tous types", "session", "device", "file", "app", "system", "debug", "capture", "batch", "script", "snapshot", "error"]
+        )
+        self.audit_date_from = QLineEdit()
+        self.audit_date_from.setPlaceholderText("Date from YYYY-MM-DD")
+        self.audit_date_to = QLineEdit()
+        self.audit_date_to.setPlaceholderText("Date to YYYY-MM-DD")
+        filters.addWidget(self.audit_device_filter)
+        filters.addWidget(self.audit_type_filter)
+        filters.addWidget(self.audit_date_from)
+        filters.addWidget(self.audit_date_to)
+        left_l.addLayout(filters)
+
+        self.audit_table = QTableWidget(0, 6)
+        self.audit_table.setHorizontalHeaderLabels(["Timestamp", "Device", "Type", "Action", "Status", "Message"])
+        self.audit_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.audit_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        left_l.addWidget(self.audit_table, 1)
+        self.audit_payload_text = QTextEdit()
+        self.audit_payload_text.setReadOnly(True)
+        self.audit_payload_text.setPlaceholderText("Payload evenement selectionne...")
+        self.audit_payload_text.setMaximumHeight(170)
+        left_l.addWidget(self.audit_payload_text)
+
+        right = QGroupBox("Compare Snapshots")
+        right.setObjectName("panelCard")
+        right_l = QVBoxLayout(right)
+        right_l.setContentsMargins(10, 10, 10, 10)
+        right_l.setSpacing(8)
+        snap_top = QHBoxLayout()
+        self.snapshot_capture_btn = QPushButton("Capture Snapshot")
+        self.snapshot_refresh_btn = QPushButton("Refresh List")
+        self.snapshot_compare_btn = QPushButton("Compare A/B")
+        self.snapshot_export_json_btn = QPushButton("Export Diff JSON")
+        self.snapshot_export_html_btn = QPushButton("Export Diff HTML")
+        self.snapshot_capture_btn.setObjectName("successBtn")
+        self.snapshot_refresh_btn.setObjectName("ghostBtn")
+        self.snapshot_compare_btn.setObjectName("successBtn")
+        self.snapshot_export_json_btn.setObjectName("ghostBtn")
+        self.snapshot_export_html_btn.setObjectName("ghostBtn")
+        snap_top.addWidget(self.snapshot_capture_btn)
+        snap_top.addWidget(self.snapshot_refresh_btn)
+        snap_top.addWidget(self.snapshot_compare_btn)
+        snap_top.addWidget(self.snapshot_export_json_btn)
+        snap_top.addWidget(self.snapshot_export_html_btn)
+        right_l.addLayout(snap_top)
+        snap_sel = QHBoxLayout()
+        self.snapshot_a_box = QComboBox()
+        self.snapshot_b_box = QComboBox()
+        snap_sel.addWidget(QLabel("Snapshot A"))
+        snap_sel.addWidget(self.snapshot_a_box, 1)
+        snap_sel.addWidget(QLabel("Snapshot B"))
+        snap_sel.addWidget(self.snapshot_b_box, 1)
+        right_l.addLayout(snap_sel)
+        self.snapshot_diff_text = QTextEdit()
+        self.snapshot_diff_text.setReadOnly(True)
+        self.snapshot_diff_text.setPlaceholderText("Diff snapshot (packages, stockage, CPU/memoire, props systeme, etat device)...")
+        right_l.addWidget(self.snapshot_diff_text, 1)
+
+        split.addWidget(left)
+        split.addWidget(right)
+        split.setStretchFactor(0, 3)
+        split.setStretchFactor(1, 2)
+        layout.addWidget(split, 1)
+        self.tabs.addTab(tab, "Reports")
+
+        self.audit_refresh_btn.clicked.connect(self._refresh_audit_views)
+        self.audit_session_box.currentIndexChanged.connect(self._refresh_audit_events)
+        self.audit_device_filter.currentIndexChanged.connect(self._refresh_audit_events)
+        self.audit_type_filter.currentIndexChanged.connect(self._refresh_audit_events)
+        self.audit_date_from.textChanged.connect(self._refresh_audit_events)
+        self.audit_date_to.textChanged.connect(self._refresh_audit_events)
+        self.audit_table.itemSelectionChanged.connect(self._on_audit_row_selected)
+        self.audit_export_json_btn.clicked.connect(self._export_selected_session_json)
+        self.audit_export_html_btn.clicked.connect(self._export_selected_session_html)
+        self.snapshot_capture_btn.clicked.connect(self._capture_device_snapshot)
+        self.snapshot_refresh_btn.clicked.connect(self._refresh_snapshot_boxes)
+        self.snapshot_compare_btn.clicked.connect(self._compare_selected_snapshots)
+        self.snapshot_export_json_btn.clicked.connect(self._export_snapshot_diff_json)
+        self.snapshot_export_html_btn.clicked.connect(self._export_snapshot_diff_html)
+
+        self._refresh_audit_views()
+        self._refresh_snapshot_boxes()
+
     def _resolve_scrcpy_bin(self) -> str | None:
         raw = self.scrcpy_path_input.text().strip() if hasattr(self, "scrcpy_path_input") else "scrcpy"
         if not raw:
@@ -2037,6 +2180,7 @@ class MainWindow(QMainWindow):
             self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon),
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon),
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DirHomeIcon),
         ]
         for idx, icon in enumerate(self._tab_icons):
             if idx < self.tabs.count():
@@ -2179,6 +2323,29 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _on_devices_updated(self, devices: list[DeviceInfo]) -> None:
         self._last_devices = devices
+        current_serials = {d.serial for d in devices}
+        new_serials = current_serials - self._last_device_serials
+        gone_serials = self._last_device_serials - current_serials
+        for serial in sorted(new_serials):
+            dev = next((d for d in devices if d.serial == serial), None)
+            self._audit_event(
+                event_type="device",
+                action="device_connected",
+                status="ok",
+                message=f"Device connected: {serial}",
+                payload={"model": dev.model if dev else "", "transport": dev.transport if dev else ""},
+                serial=serial,
+            )
+        for serial in sorted(gone_serials):
+            self._audit_event(
+                event_type="device",
+                action="device_disconnected",
+                status="warning",
+                message=f"Device disconnected: {serial}",
+                payload={},
+                serial=serial,
+            )
+        self._last_device_serials = current_serials
         root_count = sum(1 for d in devices if d.root)
         if devices:
             active = devices[0]
@@ -2235,6 +2402,312 @@ class MainWindow(QMainWindow):
         self._refresh_captures()
         self._refresh_device_inspector()
         self._run_health_check()
+        self._audit_event(
+            event_type="system",
+            action="manual_refresh",
+            status="ok",
+            message="Manual refresh triggered",
+        )
+
+    def _current_transport(self, serial: str | None) -> str:
+        if not serial:
+            return ""
+        for dev in self._last_devices:
+            if dev.serial == serial:
+                return dev.transport
+        return ""
+
+    def _audit_event(
+        self,
+        *,
+        event_type: str,
+        action: str,
+        status: str,
+        message: str = "",
+        payload: dict[str, Any] | None = None,
+        serial: str | None = None,
+    ) -> None:
+        device_serial = serial or (self._selected_serial() or "")
+        transport = self._current_transport(device_serial)
+        self.audit_module.log_event(
+            self._session_id,
+            event_type=event_type,
+            action=action,
+            status=status,
+            device_serial=device_serial,
+            transport=transport,
+            message=message,
+            payload=payload or {},
+        )
+        if hasattr(self, "audit_session_box"):
+            # Light refresh only if Reports tab exists.
+            self._refresh_audit_events()
+
+    def _refresh_audit_views(self) -> None:
+        self._refresh_audit_session_box()
+        self._refresh_audit_events()
+
+    def _refresh_audit_session_box(self) -> None:
+        if not hasattr(self, "audit_session_box"):
+            return
+        current = str(self.audit_session_box.currentData() or "")
+        sessions = self.audit_module.list_sessions(limit=200)
+        self.audit_session_box.blockSignals(True)
+        self.audit_session_box.clear()
+        for sess in sessions:
+            sid = str(sess.get("session_id", ""))
+            label = f"{sid} | {sess.get('started_at', '')}"
+            self.audit_session_box.addItem(label, sid)
+        if self.audit_session_box.count() == 0:
+            self.audit_session_box.addItem("Aucune session", "")
+        if current:
+            idx = self.audit_session_box.findData(current)
+            if idx >= 0:
+                self.audit_session_box.setCurrentIndex(idx)
+        self.audit_session_box.blockSignals(False)
+
+    def _normalize_date_filter(self, raw: str) -> str:
+        text = raw.strip()
+        if not text:
+            return ""
+        if re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", text):
+            return text
+        return ""
+
+    def _refresh_audit_events(self) -> None:
+        if not hasattr(self, "audit_table"):
+            return
+        session_id = str(self.audit_session_box.currentData() or "").strip()
+        serial = str(self.audit_device_filter.currentData() or "").strip() if hasattr(self, "audit_device_filter") else ""
+        event_type = self.audit_type_filter.currentText() if hasattr(self, "audit_type_filter") else "Tous types"
+        event_type = "" if event_type == "Tous types" else event_type
+        date_from = self._normalize_date_filter(self.audit_date_from.text() if hasattr(self, "audit_date_from") else "")
+        date_to = self._normalize_date_filter(self.audit_date_to.text() if hasattr(self, "audit_date_to") else "")
+
+        events = self.audit_module.list_events(
+            session_id=session_id or None,
+            device_serial=serial or None,
+            event_type=event_type or None,
+            date_from=date_from or None,
+            date_to=date_to or None,
+            limit=int(self.config.get("reports.audit_ui_limit", 2000)),
+        )
+        self._audit_last_events = events
+        self.audit_table.setRowCount(len(events))
+        for row, event in enumerate(events):
+            self.audit_table.setItem(row, 0, QTableWidgetItem(str(event.get("ts", ""))))
+            self.audit_table.setItem(row, 1, QTableWidgetItem(str(event.get("device_serial", ""))))
+            self.audit_table.setItem(row, 2, QTableWidgetItem(str(event.get("event_type", ""))))
+            self.audit_table.setItem(row, 3, QTableWidgetItem(str(event.get("action", ""))))
+            status_item = QTableWidgetItem(str(event.get("status", "")))
+            st = str(event.get("status", "")).lower()
+            if st in {"error", "failed"}:
+                status_item.setForeground(QColor("#fca5a5"))
+            elif st in {"warning"}:
+                status_item.setForeground(QColor("#fcd34d"))
+            elif st in {"ok", "success"}:
+                status_item.setForeground(QColor("#86efac"))
+            self.audit_table.setItem(row, 4, status_item)
+            self.audit_table.setItem(row, 5, QTableWidgetItem(str(event.get("message", ""))))
+
+        if hasattr(self, "audit_device_filter"):
+            current_dev = str(self.audit_device_filter.currentData() or "")
+            serials = sorted({str(e.get("device_serial", "")).strip() for e in events if str(e.get("device_serial", "")).strip()})
+            self.audit_device_filter.blockSignals(True)
+            self.audit_device_filter.clear()
+            self.audit_device_filter.addItem("Tous devices", "")
+            for s in serials:
+                self.audit_device_filter.addItem(s, s)
+            if current_dev:
+                idx = self.audit_device_filter.findData(current_dev)
+                if idx >= 0:
+                    self.audit_device_filter.setCurrentIndex(idx)
+            self.audit_device_filter.blockSignals(False)
+
+        if not events:
+            self.audit_payload_text.setPlainText("Aucun evenement pour les filtres courants.")
+
+    def _on_audit_row_selected(self) -> None:
+        if not hasattr(self, "audit_table"):
+            return
+        row = self.audit_table.currentRow()
+        if row < 0 or row >= len(self._audit_last_events):
+            return
+        event = self._audit_last_events[row]
+        payload = event.get("payload", {})
+        text = json.dumps(payload, indent=2, ensure_ascii=False)
+        self.audit_payload_text.setPlainText(text if text else "{}")
+
+    def _export_selected_session_json(self) -> None:
+        session_id = str(self.audit_session_box.currentData() or "").strip()
+        if not session_id:
+            Toast(self, "Aucune session selectionnee")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export session JSON",
+            str(self.base_dir / "reports" / f"{session_id}.json"),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        self.audit_module.export_session_json(session_id, Path(path))
+        Toast(self, "Session exportee (JSON)")
+
+    def _export_selected_session_html(self) -> None:
+        session_id = str(self.audit_session_box.currentData() or "").strip()
+        if not session_id:
+            Toast(self, "Aucune session selectionnee")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export session HTML",
+            str(self.base_dir / "reports" / f"{session_id}.html"),
+            "HTML (*.html)",
+        )
+        if not path:
+            return
+        self.audit_module.export_session_html(session_id, Path(path))
+        Toast(self, "Session exportee (HTML)")
+
+    def _capture_device_snapshot(self) -> None:
+        serial = self._selected_serial()
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        device = self._current_device_info()
+        snapshot = self.snapshot_module.capture_snapshot(serial, device)
+        self._snapshot_last_captured_file = str(snapshot.get("file", ""))
+        self._refresh_snapshot_boxes()
+        self._audit_event(
+            event_type="snapshot",
+            action="capture_snapshot",
+            status="ok",
+            message="Snapshot captured",
+            payload={"file": self._snapshot_last_captured_file},
+            serial=serial,
+        )
+        Toast(self, f"Snapshot capture: {Path(self._snapshot_last_captured_file).name}")
+
+    def _refresh_snapshot_boxes(self) -> None:
+        if not hasattr(self, "snapshot_a_box"):
+            return
+        files = self.snapshot_module.list_snapshots()
+        names = [p.name for p in files]
+        map_paths = {p.name: str(p) for p in files}
+        current_a = self.snapshot_a_box.currentText().strip()
+        current_b = self.snapshot_b_box.currentText().strip()
+        self.snapshot_a_box.blockSignals(True)
+        self.snapshot_b_box.blockSignals(True)
+        self.snapshot_a_box.clear()
+        self.snapshot_b_box.clear()
+        self.snapshot_a_box.addItems(names)
+        self.snapshot_b_box.addItems(names)
+        if current_a:
+            idx = self.snapshot_a_box.findText(current_a)
+            if idx >= 0:
+                self.snapshot_a_box.setCurrentIndex(idx)
+        if current_b:
+            idx = self.snapshot_b_box.findText(current_b)
+            if idx >= 0:
+                self.snapshot_b_box.setCurrentIndex(idx)
+        self.snapshot_a_box.blockSignals(False)
+        self.snapshot_b_box.blockSignals(False)
+        self._snapshot_name_to_path = map_paths
+
+    def _compare_selected_snapshots(self) -> None:
+        name_a = self.snapshot_a_box.currentText().strip() if hasattr(self, "snapshot_a_box") else ""
+        name_b = self.snapshot_b_box.currentText().strip() if hasattr(self, "snapshot_b_box") else ""
+        if not name_a or not name_b:
+            Toast(self, "Selectionne snapshot A et B")
+            return
+        if name_a == name_b:
+            Toast(self, "Choisis deux snapshots differents")
+            return
+        path_a = Path(self._snapshot_name_to_path.get(name_a, ""))
+        path_b = Path(self._snapshot_name_to_path.get(name_b, ""))
+        if not path_a.exists() or not path_b.exists():
+            Toast(self, "Fichiers snapshot introuvables")
+            return
+        snap_a = self.snapshot_module.load_snapshot(path_a)
+        snap_b = self.snapshot_module.load_snapshot(path_b)
+        # Compare oldest -> newest by capture date.
+        older, newer = (snap_a, snap_b)
+        if str(snap_a.get("captured_at", "")) > str(snap_b.get("captured_at", "")):
+            older, newer = (snap_b, snap_a)
+        diff = self.snapshot_module.compare(older, newer)
+        self._snapshot_diff = diff
+        self._render_snapshot_diff(diff)
+        self._audit_event(
+            event_type="snapshot",
+            action="compare_snapshots",
+            status="ok",
+            message="Snapshots compared",
+            payload={"snapshot_a": name_a, "snapshot_b": name_b, "summary": diff.get("summary", {})},
+            serial=self._selected_serial(),
+        )
+
+    def _render_snapshot_diff(self, diff: dict[str, Any]) -> None:
+        summary = diff.get("summary", {})
+        packages = diff.get("packages", {})
+        props = diff.get("system_properties", {})
+        device_changes = diff.get("device_changes", {})
+        lines = [
+            f"From: {diff.get('from', {}).get('captured_at', 'n/a')} ({diff.get('from', {}).get('serial', '')})",
+            f"To:   {diff.get('to', {}).get('captured_at', 'n/a')} ({diff.get('to', {}).get('serial', '')})",
+            "",
+            f"Summary: {json.dumps(summary, ensure_ascii=False)}",
+            "",
+            f"Packages added: {len(packages.get('added', []))}",
+            f"Packages removed: {len(packages.get('removed', []))}",
+            "",
+        ]
+        if packages.get("added"):
+            lines.append("Added:")
+            lines.extend(f"+ {p}" for p in packages.get("added", [])[:60])
+            lines.append("")
+        if packages.get("removed"):
+            lines.append("Removed:")
+            lines.extend(f"- {p}" for p in packages.get("removed", [])[:60])
+            lines.append("")
+        if device_changes:
+            lines.append("Device changes:")
+            lines.append(json.dumps(device_changes, indent=2, ensure_ascii=False))
+            lines.append("")
+        if props:
+            lines.append(f"System properties changed: {len(props)}")
+            lines.append(json.dumps(props, indent=2, ensure_ascii=False)[:6000])
+        self.snapshot_diff_text.setPlainText("\n".join(lines))
+
+    def _export_snapshot_diff_json(self) -> None:
+        if not self._snapshot_diff:
+            Toast(self, "Aucun diff a exporter")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export diff snapshots JSON",
+            str(self.base_dir / "reports" / f"snapshot_diff_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        self.snapshot_module.export_diff_json(self._snapshot_diff, Path(path))
+        Toast(self, "Diff snapshots exporte (JSON)")
+
+    def _export_snapshot_diff_html(self) -> None:
+        if not self._snapshot_diff:
+            Toast(self, "Aucun diff a exporter")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export diff snapshots HTML",
+            str(self.base_dir / "reports" / f"snapshot_diff_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"),
+            "HTML (*.html)",
+        )
+        if not path:
+            return
+        self.snapshot_module.export_diff_html(self._snapshot_diff, Path(path))
+        Toast(self, "Diff snapshots exporte (HTML)")
 
     def _refresh_profile_box(self) -> None:
         if not hasattr(self, "profile_box"):
@@ -2467,6 +2940,14 @@ class MainWindow(QMainWindow):
         error = str(payload.get("error", ""))
 
         if not ok:
+            self._audit_event(
+                event_type="error",
+                action=task,
+                status="error",
+                message=error or f"{task} failed",
+                payload={"context": context},
+                serial=str(context.get("serial", "") if isinstance(context, dict) else ""),
+            )
             Toast(self, f"{task}: {error}")
             return
 
@@ -2474,6 +2955,14 @@ class MainWindow(QMainWindow):
             apps = value if isinstance(value, list) else []
             self._populate_apps_grid(apps)
             self.statusBar().showMessage(f"{len(apps)} applications chargees")
+            self._audit_event(
+                event_type="app",
+                action="list_apps",
+                status="ok",
+                message=f"{len(apps)} apps loaded",
+                payload={"count": len(apps), "include_system": bool(context.get("include_system", False))},
+                serial=str(context.get("serial", "")),
+            )
             return
 
         if task == "system_info":
@@ -2481,6 +2970,14 @@ class MainWindow(QMainWindow):
             self._last_system_info = info
             self.system_info_text.setPlainText("\n".join(f"{k}: {v}" for k, v in info.items()))
             self.statusBar().showMessage("Informations systeme rafraichies")
+            self._audit_event(
+                event_type="system",
+                action="system_info",
+                status="ok",
+                message="System info refreshed",
+                payload={"keys": list(info.keys())[:20]},
+                serial=str(context.get("serial", "")),
+            )
             return
 
         if task == "system_monitor":
@@ -2489,18 +2986,42 @@ class MainWindow(QMainWindow):
                 "=== TOP ===\n" + str(snap.get("top", ""))[:5000] + "\n\n=== MEMINFO ===\n" + str(snap.get("meminfo", ""))[:5000]
             )
             self.statusBar().showMessage("Snapshot monitoring termine")
+            self._audit_event(
+                event_type="system",
+                action="monitor_snapshot",
+                status="ok",
+                message="System monitor snapshot captured",
+                payload={"has_top": bool(snap.get("top")), "has_meminfo": bool(snap.get("meminfo"))},
+                serial=str(context.get("serial", "")),
+            )
             return
 
         if task == "device_inspector":
             info = value if isinstance(value, dict) else {}
             self._render_device_inspector({str(k): str(v) for k, v in info.items()})
             self.statusBar().showMessage("Device Inspector rafraichi")
+            self._audit_event(
+                event_type="device",
+                action="device_inspector",
+                status="ok",
+                message="Device inspector refreshed",
+                payload={"serial": info.get("serial", ""), "android": info.get("android_version", "")},
+                serial=str(context.get("serial", "")),
+            )
             return
 
         if task == "health_check":
             report = value if isinstance(value, dict) else {}
             self._render_health_report(report)
             self.statusBar().showMessage("ADB Health Check termine")
+            self._audit_event(
+                event_type="system",
+                action="health_check",
+                status=str(report.get("status", "ok")).lower(),
+                message=str(report.get("summary", "Health check")),
+                payload={"target_serial": report.get("target_serial", ""), "checks": len(report.get("checks", []))},
+                serial=str(context.get("serial", "")),
+            )
             return
 
         if task in {"push_file", "pull_file", "install_apk", "uninstall_app", "clear_app_data", "full_backup", "selective_backup", "restore_backup"}:
@@ -2515,6 +3036,15 @@ class MainWindow(QMainWindow):
                 Toast(self, msg if not result.ok else f"{task} termine")
             if task == "uninstall_app" and result.ok:
                 self._list_apps()
+            event_type = "file" if task in {"push_file", "pull_file"} else ("app" if task in {"install_apk", "uninstall_app", "clear_app_data"} else "system")
+            self._audit_event(
+                event_type=event_type,
+                action=task,
+                status="ok" if result.ok else "error",
+                message=msg[:200],
+                payload={"returncode": result.returncode, "context": context},
+                serial=str(context.get("serial", "")),
+            )
             return
 
         if task == "batch_run":
@@ -2557,6 +3087,22 @@ class MainWindow(QMainWindow):
                 duration = float(row.get("duration_s", 0.0))
                 self.batch_output.append(f"  [{state}] ({attempts} tentative(s), {duration:.3f}s) {cmd}\n    {out}")
             Toast(self, "Batch termine")
+            self._audit_event(
+                event_type="batch",
+                action="batch_run",
+                status="ok" if err_count == 0 else "warning",
+                message=f"Batch {executed}/{requested} done (err={err_count})",
+                payload={
+                    "executed": executed,
+                    "requested": requested,
+                    "ok": ok_count,
+                    "err": err_count,
+                    "workers": workers,
+                    "retries": retries,
+                    "duration_s": total_duration,
+                },
+                serial=str(context.get("serial", "")),
+            )
             return
 
         self.statusBar().showMessage(f"{task}: termine")
@@ -2582,8 +3128,24 @@ class MainWindow(QMainWindow):
         if ok:
             Toast(self, f"Connecte a {ip_text}:{port}")
             self.device_manager.poll_async()
+            self._audit_event(
+                event_type="device",
+                action="wifi_connect",
+                status="ok",
+                message=f"Connected to {ip_text}:{port}",
+                payload={"ip": ip_text, "port": port},
+                serial=f"{ip_text}:{port}",
+            )
         else:
             Toast(self, f"Echec connexion {ip_text}:{port}")
+            self._audit_event(
+                event_type="error",
+                action="wifi_connect",
+                status="error",
+                message=f"Failed connect {ip_text}:{port}",
+                payload={"ip": ip_text, "port": port},
+                serial=f"{ip_text}:{port}",
+            )
 
     def _wifi_pair_dialog(self) -> None:
         host_port, ok = QInputDialog.getText(
@@ -2625,6 +3187,14 @@ class MainWindow(QMainWindow):
         if not result.ok:
             msg = result.stderr or result.stdout or "Echec pairing"
             QMessageBox.warning(self, "Pairing WiFi", f"Pairing echoue:\n{msg}")
+            self._audit_event(
+                event_type="error",
+                action="wifi_pair",
+                status="error",
+                message=msg[:200],
+                payload={"host_port": host_port},
+                serial=host_port,
+            )
             return
 
         connect_targets = self._discover_tls_connect_targets(prefer_host=host)
@@ -2633,10 +3203,34 @@ class MainWindow(QMainWindow):
             connect_result = self.adb.run(["connect", target], timeout=20)
             if connect_result.ok:
                 Toast(self, f"Pairing OK + connecte a {target}")
+                self._audit_event(
+                    event_type="device",
+                    action="wifi_pair_connect",
+                    status="ok",
+                    message=f"Pairing/connect OK: {target}",
+                    payload={"pair": host_port, "connect_target": target},
+                    serial=target,
+                )
             else:
                 Toast(self, f"Pairing OK mais echec connect {target}")
+                self._audit_event(
+                    event_type="error",
+                    action="wifi_pair_connect",
+                    status="error",
+                    message=f"Pairing OK but connect failed: {target}",
+                    payload={"pair": host_port, "connect_target": target},
+                    serial=target,
+                )
         else:
             Toast(self, "Pairing OK. Lance ensuite 'Connecter WiFi' avec l'IP:PORT de debug.")
+            self._audit_event(
+                event_type="device",
+                action="wifi_pair",
+                status="ok",
+                message="Pairing OK without auto-connect target",
+                payload={"pair": host_port},
+                serial=host_port,
+            )
         self.device_manager.poll_async()
 
     def _wifi_pair_qr_dialog(self) -> None:
@@ -3497,8 +4091,19 @@ class MainWindow(QMainWindow):
             return
         results = self.automation_module.run_script(serial, steps)
         self.script_output.clear()
+        err_count = 0
         for cmd, ok, msg in results:
             self.script_output.append(f"[{'OK' if ok else 'ERR'}] {cmd}\n{msg}\n")
+            if not ok:
+                err_count += 1
+        self._audit_event(
+            event_type="script",
+            action="run_script",
+            status="ok" if err_count == 0 else "warning",
+            message=f"Script executed with {len(steps)} steps (err={err_count})",
+            payload={"steps": len(steps), "errors": err_count},
+            serial=serial,
+        )
 
     def _load_script(self) -> None:
         item = self.script_library.currentItem()
@@ -3635,6 +4240,14 @@ class MainWindow(QMainWindow):
         self._batch_pause_event = Event()
         self.batch_output.append(
             f"[BATCH] Demarrage ({len(commands)} commande(s)) sur {serial} | workers={workers} retry={retries} timeout={timeout_s}s"
+        )
+        self._audit_event(
+            event_type="batch",
+            action="batch_start",
+            status="ok",
+            message=f"Batch started ({len(commands)} commands)",
+            payload={"commands": len(commands), "workers": workers, "retries": retries, "timeout_s": timeout_s},
+            serial=serial,
         )
         self._run_in_worker(
             "batch_run",
@@ -4017,8 +4630,24 @@ class MainWindow(QMainWindow):
             Toast(self, f"Capture sauvee: {local_file.name}")
             self._refresh_captures(selected_file=local_file.name)
             self.tabs.setCurrentWidget(self.captures_tab)
+            self._audit_event(
+                event_type="capture",
+                action="screenshot",
+                status="ok",
+                message=f"Screenshot saved: {local_file.name}",
+                payload={"file": str(local_file)},
+                serial=serial,
+            )
         else:
             Toast(self, f"Pull capture echec: {pull.stderr}")
+            self._audit_event(
+                event_type="capture",
+                action="screenshot",
+                status="error",
+                message=pull.stderr or "Screenshot pull failed",
+                payload={"remote": remote_tmp},
+                serial=serial,
+            )
 
     def _start_screen_record(self) -> None:
         if self.record_process is not None:
@@ -4043,6 +4672,14 @@ class MainWindow(QMainWindow):
         self.record_process.start()
         self.statusBar().showMessage("Enregistrement video en cours...")
         Toast(self, "Enregistrement video demarre")
+        self._audit_event(
+            event_type="capture",
+            action="record_start",
+            status="ok",
+            message="Screen record started",
+            payload={"remote_file": self._record_remote_file, "local_file": str(self._record_local_file) if self._record_local_file else ""},
+            serial=serial,
+        )
 
     def _stop_screen_record(self, silent: bool = False) -> None:
         if self.record_process is None:
@@ -4093,8 +4730,24 @@ class MainWindow(QMainWindow):
             Toast(self, f"Video sauvee: {local.name}")
             self._refresh_captures(selected_file=local.name)
             self.tabs.setCurrentWidget(self.captures_tab)
+            self._audit_event(
+                event_type="capture",
+                action="record_finish",
+                status="ok",
+                message=f"Video saved: {local.name}",
+                payload={"file": str(local)},
+                serial=serial,
+            )
         else:
             Toast(self, f"Echec recuperation video: {pull.stderr}")
+            self._audit_event(
+                event_type="capture",
+                action="record_finish",
+                status="error",
+                message=pull.stderr or "Video recovery failed",
+                payload={"remote": remote, "local": str(local)},
+                serial=serial,
+            )
 
     def _pull_record_with_retry(self, serial: str, remote: str, local: Path) -> CommandResult:
         last = CommandResult(
@@ -4219,6 +4872,14 @@ class MainWindow(QMainWindow):
         }
         Path(path).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         Toast(self, "Rapport exporte")
+        self._audit_event(
+            event_type="system",
+            action="export_report",
+            status="ok",
+            message="Global report exported",
+            payload={"file": path},
+            serial=serial,
+        )
 
     def _full_backup(self) -> None:
         serial = self._selected_serial()
@@ -4302,6 +4963,15 @@ class MainWindow(QMainWindow):
         elif name == "terminal":
             output = result.stdout or result.stderr or "(aucune sortie)"
             self.terminal.append_line(output)
+            command_line = " ".join(result.command[1:]) if isinstance(result, CommandResult) and result.command else ""
+            self._audit_event(
+                event_type="debug",
+                action="adb_command",
+                status="ok" if result.ok else "error",
+                message=(result.stderr or result.stdout or "")[:200],
+                payload={"command": command_line, "returncode": result.returncode},
+                serial=self._selected_serial(),
+            )
         elif name == "remote_shell":
             serial = "?"
             command_result: CommandResult | None = None
@@ -4315,6 +4985,14 @@ class MainWindow(QMainWindow):
             if command_result is not None:
                 output = command_result.stdout or command_result.stderr or "(aucune sortie)"
                 self.remote_log_output.append(f"[adb:{serial}] {output}")
+                self._audit_event(
+                    event_type="debug",
+                    action="remote_shell",
+                    status="ok" if command_result.ok else "error",
+                    message=output[:200],
+                    payload={"returncode": command_result.returncode},
+                    serial=serial,
+                )
         elif name == "wifi_scan":
             hosts = result
             if not hosts:
@@ -4407,6 +5085,10 @@ class MainWindow(QMainWindow):
             self.qr_pair_process.deleteLater()
             self.qr_pair_process = None
         self.media_player.stop()
+        summary = self.audit_module.summarize_session(self._session_id)
+        summary["started_at"] = self._current_session_started
+        summary["ended_at"] = datetime.utcnow().isoformat() + "Z"
+        self.audit_module.end_session(self._session_id, summary=summary, status="completed")
         self.config.save()
         self.device_manager.shutdown()
         self.adb.shutdown()

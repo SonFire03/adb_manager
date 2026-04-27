@@ -1,0 +1,38 @@
+name: Bug report
+about: Report a reproducible bug in ADB Manager Pro
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Merci de remplir ce template avec un scenario reproductible."
+  - type: input
+    id: summary
+    attributes:
+      label: Resume
+      placeholder: "Description courte du bug"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "OS, Python version, ADB version"

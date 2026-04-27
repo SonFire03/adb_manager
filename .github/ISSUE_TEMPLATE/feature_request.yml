@@ -1,0 +1,27 @@
+name: Feature request
+about: Suggest a product improvement
+labels: [enhancement]
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: Feature summary
+      placeholder: "What should be improved?"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
