@@ -1,0 +1,13 @@
+{
+  "favorites": [
+    {
+      "name": "Redemarrer appareil",
+      "command": "reboot"
+    },
+    {
+      "name": "Capture ecran",
+      "command": "exec-out screencap -p"
+    }
+  ],
+  "custom": []
+}

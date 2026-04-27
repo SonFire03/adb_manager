@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.log
+config/history.db
+backups/
+captures/
+.codex
+.DS_Store
+*.sqlite
+*.db-journal
+*.swp
+resources/icons/app_cache/

@@ -1,0 +1,482 @@
+ADB COMMANDES COMPLÈTES - RÉFÉRENCE EXHAUSTIVE
+============================================
+
+Format: NOM | COMMANDE | CATÉGORIE | ROOT_REQUIS | DESCRIPTION
+
+--- CONNEXION ET APPAREILS ---
+Liste_appareils | adb devices | Connexion | Non | Liste tous les appareils connectés
+Liste_détaillée | adb devices -l | Connexion | Non | Liste détaillée des appareils avec infos
+Connexion_TCP | adb tcpip <port> | Connexion | Non | Active la connexion TCP/IP
+Connexion_WiFi | adb connect <ip>:<port> | Connexion | Non | Se connecte via WiFi
+Déconnexion_WiFi | adb disconnect <ip>:<port> | Connexion | Non | Se déconnecte du WiFi
+Déconnexion_tous | adb disconnect | Connexion | Non | Déconnecte tous les appareils WiFi
+USB_mode | adb usb | Connexion | Non | Retour au mode USB
+Redémarrer_serveur | adb kill-server | Connexion | Non | Tue le serveur ADB
+Démarrer_serveur | adb start-server | Connexion | Non | Démarre le serveur ADB
+Version_ADB | adb version | Connexion | Non | Affiche la version ADB
+Aide_ADB | adb help | Connexion | Non | Affiche l'aide ADB
+
+--- REDÉMARRAGE ET MODES ---
+Redémarrer | adb reboot | Redémarrage | Non | Redémarre l'appareil
+Mode_recovery | adb reboot recovery | Redémarrage | Non | Redémarre en mode recovery
+Mode_bootloader | adb reboot bootloader | Redémarrage | Non | Redémarre en mode bootloader
+Mode_fastboot | adb reboot fastboot | Redémarrage | Non | Redémarre en mode fastboot
+Mode_download | adb reboot download | Redémarrage | Non | Redémarre en mode download (Samsung)
+Éteindre | adb shell su -c "reboot -p" | Redémarrage | Oui | Éteint l'appareil
+Redémarrer_sideload | adb reboot sideload | Redémarrage | Non | Redémarre en mode sideload
+Redémarrage_soft | adb shell su -c "setprop ctl.restart zygote" | Redémarrage | Oui | Redémarrage logiciel (soft reboot)
+
+--- SHELL ET COMMANDES ---
+Shell_interactif | adb shell | Shell | Non | Shell interactif Android
+Commande_shell | adb shell <commande> | Shell | Non | Exécute une commande shell
+Su_shell | adb shell su | Shell | Oui | Shell root interactif
+Exécuter_su | adb shell su -c "<commande>" | Shell | Oui | Exécute une commande en root
+Whoami | adb shell whoami | Shell | Non | Affiche l'utilisateur actuel
+ID_utilisateur | adb shell id | Shell | Non | Affiche l'ID utilisateur
+Environnement | adb shell env | Shell | Non | Variables d'environnement
+Date_système | adb shell date | Shell | Non | Affiche la date système
+Uptime | adb shell uptime | Shell | Non | Temps de fonctionnement
+Processus_actifs | adb shell ps | Shell | Non | Liste des processus
+Processus_détaillés | adb shell ps -ef | Shell | Non | Processus avec détails
+Top_processus | adb shell top | Shell | Non | Moniteur de processus en temps réel
+Tuer_processus | adb shell kill <pid> | Shell | Non | Tue un processus par PID
+Kill_forcé | adb shell kill -9 <pid> | Shell | Non | Force la fin d'un processus
+Killall_nom | adb shell killall <nom> | Shell | Non | Tue tous les processus par nom
+
+--- TRANSFERT DE FICHIERS ---
+Push_fichier | adb push <local> <distant> | Fichiers | Non | Copie fichier vers l'appareil
+Pull_fichier | adb pull <distant> <local> | Fichiers | Non | Récupère fichier de l'appareil
+Push_préservation | adb push --sync <local> <distant> | Fichiers | Non | Push avec préservation timestamps
+Pull_préservation | adb pull -a <distant> <local> | Fichiers | Non | Pull avec préservation attributs
+Sync_dossier | adb sync | Fichiers | Non | Synchronise /system et /data
+Push_multiple | adb push <dir>/ <distant>/ | Fichiers | Non | Push récursif de dossier
+
+--- NAVIGATION FICHIERS ---
+Lister_fichiers | adb shell ls <chemin> | Navigation | Non | Liste fichiers/dossiers
+Liste_détaillée | adb shell ls -la <chemin> | Navigation | Non | Liste avec permissions et dates
+Liste_récursive | adb shell ls -R <chemin> | Navigation | Non | Liste récursive
+Trouver_fichier | adb shell find <chemin> -name "<pattern>" | Navigation | Non | Recherche de fichiers
+Localiser_fichier | adb shell locate <nom> | Navigation | Non | Localise un fichier
+Which_commande | adb shell which <commande> | Navigation | Non | Localise une commande
+Pwd_courant | adb shell pwd | Navigation | Non | Affiche répertoire courant
+Changer_dossier | cd <chemin> (dans shell) | Navigation | Non | Change de répertoire
+Créer_dossier | adb shell mkdir <chemin> | Navigation | Non | Crée un dossier
+Créer_dossiers | adb shell mkdir -p <chemin> | Navigation | Non | Crée dossiers parents si besoin
+Supprimer_fichier | adb shell rm <fichier> | Navigation | Non | Supprime un fichier
+Supprimer_dossier | adb shell rm -rf <dossier> | Navigation | Non | Supprime dossier récursivement
+Supprimer_forcé | adb shell rm -f <fichier> | Navigation | Non | Force la suppression
+Copier_fichier | adb shell cp <source> <dest> | Navigation | Non | Copie un fichier
+Copier_récursif | adb shell cp -r <source> <dest> | Navigation | Non | Copie récursivement
+Déplacer_fichier | adb shell mv <source> <dest> | Navigation | Non | Déplace/renomme fichier
+Lien_symbolique | adb shell ln -s <source> <lien> | Navigation | Non | Crée lien symbolique
+Lien_dur | adb shell ln <source> <lien> | Navigation | Non | Crée lien dur
+Toucher_fichier | adb shell touch <fichier> | Navigation | Non | Crée/met à jour fichier vide
+
+--- PERMISSIONS FICHIERS ---
+Voir_permissions | adb shell stat <fichier> | Permissions | Non | Détails permissions fichier
+Changer_permissions | adb shell chmod <mode> <fichier> | Permissions | Parfois | Change permissions
+Permissions_récursives | adb shell chmod -R <mode> <dossier> | Permissions | Parfois | Change permissions récursivement
+Changer_propriétaire | adb shell su -c "chown <user>:<group> <fichier>" | Permissions | Oui | Change propriétaire
+Propriétaire_récursif | adb shell su -c "chown -R <user>:<group> <dossier>" | Permissions | Oui | Change propriétaire récursivement
+Contexte_SELinux | adb shell ls -Z <fichier> | Permissions | Non | Affiche contexte SELinux
+Changer_contexte | adb shell su -c "chcon <contexte> <fichier>" | Permissions | Oui | Change contexte SELinux
+Restaurer_contexte | adb shell su -c "restorecon <fichier>" | Permissions | Oui | Restaure contexte par défaut
+
+--- LECTURE DE FICHIERS ---
+Afficher_fichier | adb shell cat <fichier> | Lecture | Non | Affiche contenu fichier
+Afficher_début | adb shell head <fichier> | Lecture | Non | Affiche début de fichier
+Afficher_fin | adb shell tail <fichier> | Lecture | Non | Affiche fin de fichier
+Suivre_fichier | adb shell tail -f <fichier> | Lecture | Non | Suit les modifications en temps réel
+Afficher_numéros | adb shell cat -n <fichier> | Lecture | Non | Affiche avec numéros de ligne
+Hexdump | adb shell hexdump <fichier> | Lecture | Non | Affichage hexadécimal
+Od_octal | adb shell od <fichier> | Lecture | Non | Affichage octal
+Strings_texte | adb shell strings <fichier> | Lecture | Non | Extrait chaînes de caractères
+File_type | adb shell file <fichier> | Lecture | Non | Détermine type de fichier
+Wc_compter | adb shell wc <fichier> | Lecture | Non | Compte lignes/mots/caractères
+Grep_rechercher | adb shell grep "<pattern>" <fichier> | Lecture | Non | Recherche dans fichier
+Grep_récursif | adb shell grep -r "<pattern>" <dossier> | Lecture | Non | Recherche récursive
+Egrep_regex | adb shell egrep "<regex>" <fichier> | Lecture | Non | Recherche avec regex étendue
+Sort_trier | adb shell sort <fichier> | Lecture | Non | Trie les lignes
+Uniq_unique | adb shell uniq <fichier> | Lecture | Non | Élimine doublons
+Cut_colonnes | adb shell cut -d'<sep>' -f<num> <fichier> | Lecture | Non | Extrait colonnes
+Awk_traitement | adb shell awk '<script>' <fichier> | Lecture | Non | Traitement avancé
+Sed_édition | adb shell sed '<script>' <fichier> | Lecture | Non | Édition de flux
+Diff_comparaison | adb shell diff <fichier1> <fichier2> | Lecture | Non | Compare deux fichiers
+
+--- ARCHIVES ET COMPRESSION ---
+Tar_créer | adb shell tar -cf <archive.tar> <fichiers> | Archives | Non | Crée archive tar
+Tar_extraire | adb shell tar -xf <archive.tar> | Archives | Non | Extrait archive tar
+Tar_lister | adb shell tar -tf <archive.tar> | Archives | Non | Liste contenu tar
+Tar_gzip | adb shell tar -czf <archive.tar.gz> <fichiers> | Archives | Non | Archive tar.gz
+Tar_dégzip | adb shell tar -xzf <archive.tar.gz> | Archives | Non | Extrait tar.gz
+Gzip_compresser | adb shell gzip <fichier> | Archives | Non | Compresse avec gzip
+Gunzip_décompresser | adb shell gunzip <fichier.gz> | Archives | Non | Décompresse gzip
+Zip_créer | adb shell zip <archive.zip> <fichiers> | Archives | Non | Crée archive zip
+Unzip_extraire | adb shell unzip <archive.zip> | Archives | Non | Extrait archive zip
+Zip_lister | adb shell unzip -l <archive.zip> | Archives | Non | Liste contenu zip
+
+--- APPLICATIONS - INSTALLATION ---
+Installer_APK | adb install <fichier.apk> | Applications | Non | Installe une APK
+Réinstaller_APK | adb install -r <fichier.apk> | Applications | Non | Réinstalle (garde données)
+Installer_SD | adb install -s <fichier.apk> | Applications | Non | Installe sur SD
+Installer_forward | adb install -l <fichier.apk> | Applications | Non | Forward lock
+Installer_test | adb install -t <fichier.apk> | Applications | Non | Permet install apps test
+Installer_downgrade | adb install -d <fichier.apk> | Applications | Non | Permet downgrade
+Installer_grant | adb install -g <fichier.apk> | Applications | Non | Accorde toutes permissions
+Multiple_APK | adb install-multiple <apk1> <apk2> | Applications | Non | Installe APKs multiples
+Sideload_APK | adb sideload <update.zip> | Applications | Non | Sideload en mode recovery
+
+--- APPLICATIONS - DÉSINSTALLATION ---
+Désinstaller | adb uninstall <package> | Applications | Non | Désinstalle application
+Désinstaller_garder | adb uninstall -k <package> | Applications | Non | Garde données utilisateur
+Désinstaller_user | adb shell pm uninstall --user 0 <package> | Applications | Non | Désinstalle pour utilisateur
+
+--- APPLICATIONS - GESTION ---
+Lister_packages | adb shell pm list packages | Applications | Non | Liste tous les packages
+Packages_système | adb shell pm list packages -s | Applications | Non | Packages système uniquement
+Packages_tiers | adb shell pm list packages -3 | Applications | Non | Packages tiers uniquement
+Packages_activés | adb shell pm list packages -e | Applications | Non | Packages activés
+Packages_désactivés | adb shell pm list packages -d | Applications | Non | Packages désactivés
+Packages_installateur | adb shell pm list packages -i | Applications | Non | Avec installateur
+Path_package | adb shell pm path <package> | Applications | Non | Chemin vers APK
+Dump_package | adb shell pm dump <package> | Applications | Non | Informations détaillées
+Clear_données | adb shell pm clear <package> | Applications | Non | Vide données/cache
+Activer_package | adb shell pm enable <package> | Applications | Non | Active un package
+Désactiver_package | adb shell pm disable <package> | Applications | Non | Désactive un package
+Désactiver_user | adb shell pm disable-user <package> | Applications | Non | Désactive pour utilisateur
+Réinitialiser_permissions | adb shell pm reset-permissions | Applications | Parfois | Remet permissions par défaut
+Grant_permission | adb shell pm grant <package> <permission> | Applications | Non | Accorde permission
+Revoke_permission | adb shell pm revoke <package> <permission> | Applications | Non | Révoque permission
+
+--- APPLICATIONS - LANCEMENT ---
+Lancer_activité | adb shell am start <package>/<activité> | Lancement | Non | Lance une activité
+Lancer_action | adb shell am start -a <action> | Lancement | Non | Lance par action
+Lancer_données | adb shell am start -d <data> | Lancement | Non | Lance avec données
+Start_service | adb shell am startservice <package>/<service> | Lancement | Non | Démarre un service
+Stop_service | adb shell am stopservice <package>/<service> | Lancement | Non | Arrête un service
+Send_broadcast | adb shell am broadcast -a <action> | Lancement | Non | Envoie broadcast
+Force_stop | adb shell am force-stop <package> | Lancement | Non | Force l'arrêt
+Kill_app | adb shell am kill <package> | Lancement | Non | Tue l'application
+Kill_all | adb shell am kill-all | Lancement | Non | Tue toutes les apps
+Start_crash | adb shell am crash <package> | Lancement | Non | Force crash pour debug
+Start_ANR | adb shell am hang <package> | Lancement | Non | Force ANR pour debug
+
+--- INFORMATIONS SYSTÈME ---
+Build_properties | adb shell getprop | Système | Non | Toutes les propriétés build
+Propriété_spécifique | adb shell getprop <key> | Système | Non | Une propriété spécifique
+Version_Android | adb shell getprop ro.build.version.release | Système | Non | Version Android
+SDK_version | adb shell getprop ro.build.version.sdk | Système | Non | Niveau API SDK
+Modèle_appareil | adb shell getprop ro.product.model | Système | Non | Modèle de l'appareil
+Fabricant | adb shell getprop ro.product.manufacturer | Système | Non | Fabricant
+Marque | adb shell getprop ro.product.brand | Système | Non | Marque
+Nom_produit | adb shell getprop ro.product.name | Système | Non | Nom du produit
+Fingerprint | adb shell getprop ro.build.fingerprint | Système | Non | Empreinte du build
+Numéro_série | adb shell getprop ro.serialno | Système | Non | Numéro de série
+IMEI | adb shell service call iphonesubinfo 1 | Système | Parfois | IMEI de l'appareil
+MAC_WiFi | adb shell cat /sys/class/net/wlan0/address | Système | Non | Adresse MAC WiFi
+Adresse_IP | adb shell ip addr show wlan0 | Système | Non | Adresse IP WiFi
+Kernel_version | adb shell cat /proc/version | Système | Non | Version du kernel
+CPU_info | adb shell cat /proc/cpuinfo | Système | Non | Informations CPU
+Mémoire_info | adb shell cat /proc/meminfo | Système | Non | Informations mémoire
+Partitions | adb shell cat /proc/mounts | Système | Non | Points de montage
+Stockage_df | adb shell df | Système | Non | Espace disque
+Stockage_détaillé | adb shell df -h | Système | Non | Espace lisible humain
+
+--- GESTION MÉMOIRE ---
+Meminfo_détaillé | adb shell dumpsys meminfo | Mémoire | Non | Informations mémoire détaillées
+Meminfo_package | adb shell dumpsys meminfo <package> | Mémoire | Non | Mémoire d'une app
+Procrank | adb shell procrank | Mémoire | Non | Classement processus par mémoire
+Free_mémoire | adb shell free | Mémoire | Non | Mémoire libre/utilisée
+Vmstat | adb shell vmstat | Mémoire | Non | Statistiques mémoire virtuelle
+Drop_caches | adb shell su -c "echo 3 > /proc/sys/vm/drop_caches" | Mémoire | Oui | Vide les caches
+Compact_memory | adb shell su -c "echo 1 > /proc/sys/vm/compact_memory" | Mémoire | Oui | Compacte la mémoire
+
+--- BATTERIE ---
+Info_batterie | adb shell dumpsys battery | Batterie | Non | Toutes infos batterie
+Niveau_batterie | adb shell dumpsys battery | grep level | Batterie | Non | Niveau de charge
+Statut_charge | adb shell dumpsys battery | grep status | Batterie | Non | Statut de charge
+Santé_batterie | adb shell dumpsys battery | grep health | Batterie | Non | Santé batterie
+Température | adb shell dumpsys battery | grep temperature | Batterie | Non | Température batterie
+Voltage | adb shell dumpsys battery | grep voltage | Batterie | Non | Voltage batterie
+Reset_batterie | adb shell dumpsys battery reset | Batterie | Non | Reset stats batterie
+Set_niveau | adb shell dumpsys battery set level <niveau> | Batterie | Non | Simule niveau
+Set_statut | adb shell dumpsys battery set status <statut> | Batterie | Non | Simule statut
+Unplug_simul | adb shell dumpsys battery unplug | Batterie | Non | Simule débranchement
+
+--- PARAMÈTRES SYSTÈME ---
+Settings_global | adb shell settings list global | Paramètres | Non | Paramètres globaux
+Settings_system | adb shell settings list system | Paramètres | Non | Paramètres système
+Settings_secure | adb shell settings list secure | Paramètres | Non | Paramètres sécurisés
+Get_setting | adb shell settings get <table> <key> | Paramètres | Non | Lit un paramètre
+Put_setting | adb shell settings put <table> <key> <value> | Paramètres | Non | Modifie paramètre
+Delete_setting | adb shell settings delete <table> <key> | Paramètres | Non | Supprime paramètre
+WiFi_on | adb shell settings put global wifi_on 1 | Paramètres | Non | Active WiFi
+WiFi_off | adb shell settings put global wifi_on 0 | Paramètres | Non | Désactive WiFi
+Airplane_on | adb shell settings put global airplane_mode_on 1 | Paramètres | Non | Mode avion ON
+Airplane_off | adb shell settings put global airplane_mode_on 0 | Paramètres | Non | Mode avion OFF
+Auto_rotate_on | adb shell settings put system accelerometer_rotation 1 | Paramètres | Non | Rotation auto ON
+Auto_rotate_off | adb shell settings put system accelerometer_rotation 0 | Paramètres | Non | Rotation auto OFF
+Luminosité | adb shell settings put system screen_brightness <0-255> | Paramètres | Non | Régle luminosité
+Auto_brightness_on | adb shell settings put system screen_brightness_mode 1 | Paramètres | Non | Luminosité auto ON
+Auto_brightness_off | adb shell settings put system screen_brightness_mode 0 | Paramètres | Non | Luminosité auto OFF
+Volume_système | adb shell settings put system volume_system <0-7> | Paramètres | Non | Volume système
+Volume_media | adb shell settings put system volume_music <0-15> | Paramètres | Non | Volume média
+Volume_ring | adb shell settings put system volume_ring <0-7> | Paramètres | Non | Volume sonnerie
+Timeout_écran | adb shell settings put system screen_off_timeout <ms> | Paramètres | Non | Délai extinction écran
+Stay_awake_on | adb shell settings put global stay_on_while_plugged_in 3 | Paramètres | Non | Reste éveillé si branché
+Adb_enabled | adb shell settings put global adb_enabled 1 | Paramètres | Non | Active ADB
+Location_on | adb shell settings put secure location_providers_allowed +gps | Paramètres | Non | Active GPS
+Location_off | adb shell settings put secure location_providers_allowed -gps | Paramètres | Non | Désactive GPS
+
+--- RÉSEAU ---
+Ifconfig | adb shell ifconfig | Réseau | Non | Configuration interfaces
+IP_route | adb shell ip route | Réseau | Non | Table de routage
+Netstat | adb shell netstat | Réseau | Non | Connexions réseau
+SS_connexions | adb shell ss | Réseau | Non | Socket statistics
+Ping_host | adb shell ping <host> | Réseau | Non | Ping vers host
+Traceroute | adb shell traceroute <host> | Réseau | Non | Trace route
+Nslookup | adb shell nslookup <host> | Réseau | Non | Résolution DNS
+Wget_download | adb shell wget <url> | Réseau | Non | Télécharge fichier
+Curl_request | adb shell curl <url> | Réseau | Non | Requête HTTP
+WiFi_scan | adb shell cmd wifi list-scan-results | Réseau | Non | Scan réseaux WiFi
+WiFi_status | adb shell dumpsys wifi | Réseau | Non | Statut WiFi détaillé
+Proxy_set | adb shell settings put global http_proxy <host>:<port> | Réseau | Non | Configure proxy
+Proxy_clear | adb shell settings delete global http_proxy | Réseau | Non | Supprime proxy
+Tethering_on | adb shell su -c "service call connectivity 33 i32 1" | Réseau | Oui | Active partage connexion
+Mobile_data_on | adb shell su -c "svc data enable" | Réseau | Oui | Active données mobiles
+Mobile_data_off | adb shell su -c "svc data disable" | Réseau | Oui | Désactive données mobiles
+WiFi_service_on | adb shell su -c "svc wifi enable" | Réseau | Oui | Service WiFi ON
+WiFi_service_off | adb shell su -c "svc wifi disable" | Réseau | Oui | Service WiFi OFF
+
+--- ÉCRAN ET AFFICHAGE ---
+Screenshot | adb shell screencap <chemin> | Écran | Non | Capture d'écran
+Screenshot_pull | adb shell screencap -p > screenshot.png | Écran | Non | Capture vers PC directement
+Screenrecord | adb shell screenrecord <chemin> | Écran | Non | Enregistrement vidéo
+Screenrecord_time | adb shell screenrecord --time-limit <sec> <chemin> | Écran | Non | Enregistrement limité
+Screenrecord_size | adb shell screenrecord --size <width>x<height> <chemin> | Écran | Non | Taille personnalisée
+Wm_size | adb shell wm size | Écran | Non | Résolution écran
+Wm_density | adb shell wm density | Écran | Non | Densité écran
+Set_size | adb shell wm size <width>x<height> | Écran | Non | Change résolution
+Set_density | adb shell wm density <dpi> | Écran | Non | Change densité
+Reset_size | adb shell wm size reset | Écran | Non | Reset résolution
+Reset_density | adb shell wm density reset | Écran | Non | Reset densité
+Overscan | adb shell wm overscan <left>,<top>,<right>,<bottom> | Écran | Non | Configure overscan
+Rotation | adb shell content insert --uri content://settings/system --bind name:s:user_rotation --bind value:i:<0-3> | Écran | Non | Force rotation
+
+--- ENTRÉES UTILISATEUR ---
+Input_tap | adb shell input tap <x> <y> | Entrées | Non | Tap aux coordonnées
+Input_swipe | adb shell input swipe <x1> <y1> <x2> <y2> <durée> | Entrées | Non | Swipe entre points
+Input_text | adb shell input text "<texte>" | Entrées | Non | Saisie de texte
+Input_keyevent | adb shell input keyevent <code> | Entrées | Non | Touche par code
+Key_home | adb shell input keyevent KEYCODE_HOME | Entrées | Non | Bouton home
+Key_back | adb shell input keyevent KEYCODE_BACK | Entrées | Non | Bouton retour
+Key_menu | adb shell input keyevent KEYCODE_MENU | Entrées | Non | Bouton menu
+Key_power | adb shell input keyevent KEYCODE_POWER | Entrées | Non | Bouton power
+Key_volume_up | adb shell input keyevent KEYCODE_VOLUME_UP | Entrées | Non | Volume +
+Key_volume_down | adb shell input keyevent KEYCODE_VOLUME_DOWN | Entrées | Non | Volume -
+Key_enter | adb shell input keyevent KEYCODE_ENTER | Entrées | Non | Touche entrée
+Key_del | adb shell input keyevent KEYCODE_DEL | Entrées | Non | Touche suppression
+Key_tab | adb shell input keyevent KEYCODE_TAB | Entrées | Non | Touche tab
+Key_space | adb shell input keyevent KEYCODE_SPACE | Entrées | Non | Barre espace
+Long_press | adb shell input keyevent --longpress <code> | Entrées | Non | Appui long
+Multiple_taps | adb shell input tap <x> <y> & input tap <x2> <y2> | Entrées | Non | Taps multiples
+
+--- AUDIO ---
+Audio_info | adb shell dumpsys audio | Audio | Non | Informations audio
+Volume_get | adb shell dumpsys audio | grep "Stream volume" | Audio | Non | Niveaux volume
+Media_scan | adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://<chemin> | Audio | Non | Scan fichier média
+Media_mount | adb shell am broadcast -a android.intent.action.MEDIA_MOUNTED -d file:///sdcard | Audio | Non | Monte stockage média
+Record_audio | adb shell su -c "tinymix" | Audio | Oui | Contrôle audio bas niveau
+
+--- BLUETOOTH ---
+Bluetooth_info | adb shell dumpsys bluetooth_manager | Bluetooth | Non | Infos Bluetooth
+Bt_enable | adb shell su -c "service call bluetooth_manager 6" | Bluetooth | Oui | Active Bluetooth
+Bt_disable | adb shell su -c "service call bluetooth_manager 8" | Bluetooth | Oui | Désactive Bluetooth
+Bt_discoverable | adb shell su -c "service call bluetooth_manager 23 i32 1 i32 300" | Bluetooth | Oui | Mode découvrable
+
+--- LOGS ET DEBUGGING ---
+Logcat_all | adb logcat | Logs | Non | Tous les logs
+Logcat_clear | adb logcat -c | Logs | Non | Vide les logs
+Logcat_tag | adb logcat -s <tag> | Logs | Non | Logs par tag
+Logcat_priority | adb logcat *:<level> | Logs | Non | Logs par priorité
+Logcat_file | adb logcat > <fichier> | Logs | Non | Logs vers fichier
+Logcat_format | adb logcat -v <format> | Logs | Non | Format des logs
+Logcat_buffer | adb logcat -b <buffer> | Logs | Non | Buffer spécifique
+Bugreport | adb bugreport <fichier> | Debug | Non | Rapport de bug complet
+Bugreport_zip | adb bugreport <fichier.zip> | Debug | Non | Bugreport en zip
+Shell_debug | adb shell setprop log.tag.<TAG> <LEVEL> | Debug | Non | Active debug pour tag
+ANR_traces | adb shell cat /data/anr/traces.txt | Debug | Parfois | Traces ANR
+Tombstones | adb shell ls /data/tombstones/ | Debug | Parfois | Crash logs natives
+Dumpstate | adb shell dumpstate | Debug | Non | État système complet
+Dumpsys_services | adb shell service list | Debug | Non | Liste des services
+Dumpsys_specific | adb shell dumpsys <service> | Debug | Non | Dump service spécifique
+
+--- SAUVEGARDE ET RESTAURATION ---
+Backup_app | adb backup -apk -shared -nosystem <package> | Sauvegarde | Non | Sauvegarde une app
+Backup_all | adb backup -apk -shared -nosystem -all | Sauvegarde | Non | Sauvegarde toutes apps
+Backup_system | adb backup -apk -shared -system -all | Sauvegarde | Non | Inclut apps système
+Restore_backup | adb restore <fichier.ab> | Sauvegarde | Non | Restaure sauvegarde
+Backup_no_apk | adb backup -shared -nosystem -all | Sauvegarde | Non | Sans fichiers APK
+
+--- SÉCURITÉ ET VERROUILLAGE ---
+Disable_keyguard | adb shell su -c "service call window 19" | Sécurité | Oui | Désactive écran verrouillage
+Pattern_remove | adb shell su -c "rm /data/system/gesture.key" | Sécurité | Oui | Supprime schéma
+Password_remove | adb shell su -c "rm /data/system/password.key" | Sécurité | Oui | Supprime mot de passe
+Locksettings_remove | adb shell su -c "rm /data/system/locksettings.*" | Sécurité | Oui | Supprime config verrouillage
+Lockscreen_disable | adb shell settings put secure lockscreen.disabled 1 | Sécurité | Non | Désactive écran verrou
+Device_admin_list | adb shell dpm list-owners | Sécurité | Non | Liste admins appareil
+SELinux_status | adb shell getenforce | Sécurité | Non | Statut SELinux
+SELinux_permissive | adb shell su -c "setenforce 0" | Sécurité | Oui | SELinux permissif
+SELinux_enforcing | adb shell su -c "setenforce 1" | Sécurité | Oui | SELinux strict
+
+--- DÉVELOPPEMENT ---
+Enable_debugging | adb shell settings put global adb_enabled 1 | Développement | Non | Active débogage
+Disable_debugging | adb shell settings put global adb_enabled 0 | Développement | Non | Désactive débogage
+GPU_rendering | adb shell setprop debug.hwui.profile true | Développement | Non | Profile GPU
+Layout_bounds | adb shell setprop debug.layout true | Développement | Non | Affiche bordures layout
+Overdraw_show | adb shell setprop debug.hwui.overdraw show | Développement | Non | Montre overdraw
+Pointer_location | adb shell settings put system pointer_location 1 | Développement | Non | Affiche pointeur
+Show_touches | adb shell settings put system show_touches 1 | Développement | Non | Affiche touches
+Demo_mode_on | adb shell settings put global sysui_demo_allowed 1 | Développement | Non | Active mode démo
+Demo_mode_enter | adb shell am broadcast -a com.android.systemui.demo -e command enter | Développement | Non | Entre mode démo
+Demo_mode_exit | adb shell am broadcast -a com.android.systemui.demo -e command exit | Développement | Non | Sort mode démo
+Strict_mode | adb shell setprop dalvik.vm.debug.alloc-stress true | Développement | Non | Active StrictMode
+ANR_timeout | adb shell setprop ro.kernel.android.checkjni 1 | Développement | Non | Vérification JNI
+
+--- PERFORMANCES ---
+GPU_info | adb shell dumpsys SurfaceFlinger | Performances | Non | Infos GPU/Surface
+CPU_freq | adb shell cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq | Performances | Non | Fréquence CPU
+Thermal_info | adb shell cat /sys/class/thermal/thermal_zone*/temp | Performances | Non | Températures système
+Top_cpu | adb shell top -n 1 | Performances | Non | Top CPU instantané
+IOStat | adb shell iostat | Performances | Non | Statistiques I/O
+Profile_start | adb shell am profile start <package> <fichier> | Performances | Non | Démarre profiling
+Profile_stop | adb shell am profile stop <package> | Performances | Non | Arrête profiling
+Trace_start | adb shell atrace --async_start gfx input view | Performances | Non | Démarre trace système
+Trace_stop | adb shell atrace --async_stop > <fichier> | Performances | Non | Arrête et sauve trace
+
+--- ROOT ET SYSTÈME AVANCÉ ---
+Mount_system_rw | adb shell su -c "mount -o remount,rw /system" | Root | Oui | Monte /system en écriture
+Mount_system_ro | adb shell su -c "mount -o remount,ro /system" | Root | Oui | Monte /system en lecture
+Busybox_install | adb push busybox /system/bin/ && adb shell su -c "chmod 755 /system/bin/busybox" | Root | Oui | Installe busybox
+Su_test | adb shell su -c "id" | Root | Oui | Test accès root
+Root_check | adb shell which su | Root | Non | Vérifie présence su
+Magisk_check | adb shell su -c "magisk --version" | Root | Oui | Version Magisk
+SuperSU_check | adb shell su -c "which su" | Root | Oui | Vérifie SuperSU
+Init_d_support | adb shell su -c "ls /system/etc/init.d/" | Root | Oui | Vérifie support init.d
+Build_prop_edit | adb shell su -c "vi /system/build.prop" | Root | Oui | Édite build.prop
+Hosts_file_edit | adb shell su -c "vi /system/etc/hosts" | Root | Oui | Édite fichier hosts
+Bootloader_unlock | adb shell su -c "fastboot oem unlock" | Root | Oui | Déverrouille bootloader
+Recovery_install | adb shell su -c "dd if=/sdcard/recovery.img of=/dev/block/recovery" | Root | Oui | Flash recovery custom
+
+--- MONITORING AVANCÉ ---
+Watchprops | adb shell watchprops | Monitoring | Non | Surveille changements propriétés
+Sensor_list | adb shell dumpsys sensorservice | Monitoring | Non | Liste des capteurs
+Sensor_test | adb shell am start -n com.android.settings/.TestingSettings | Monitoring | Non | Interface test capteurs
+GPS_status | adb shell dumpsys location | Monitoring | Non | Statut GPS/location
+Camera_info | adb shell dumpsys media.camera | Monitoring | Non | Infos caméras
+USB_info | adb shell dumpsys usb | Monitoring | Non | Statut USB
+Power_info | adb shell dumpsys power | Monitoring | Non | Gestion alimentation
+Display_info | adb shell dumpsys display | Monitoring | Non | Infos écran détaillées
+Window_info | adb shell dumpsys window | Monitoring | Non | Gestionnaire fenêtres
+Activity_info | adb shell dumpsys activity | Monitoring | Non | Gestionnaire activités
+Package_info | adb shell dumpsys package | Monitoring | Non | Gestionnaire packages complet
+
+--- TESTS ET AUTOMATISATION ---
+Monkey_test | adb shell monkey -p <package> -v <count> | Tests | Non | Test automatique d'interface
+Monkey_random | adb shell monkey -v <count> | Tests | Non | Test aléatoire global
+UI_automator_dump | adb shell uiautomator dump | Tests | Non | Dump hiérarchie UI
+UI_automator_screenshot | adb shell uiautomator screenshot | Tests | Non | Screenshot via UI Automator
+Instrument_test | adb shell am instrument -w <package>/<runner> | Tests | Non | Lance tests instrumentés
+JUnit_runner | adb shell am instrument -w -e class <class> <package>/<runner> | Tests | Non | Test classe spécifique
+Espresso_test | adb shell am instrument -w -r -e debug false <package>.test/<runner> | Tests | Non | Tests Espresso
+
+--- ÉMULATION ET SIMULATION ---
+GPS_mock | adb shell su -c "service call location 20 s16 com.example.app" | Émulation | Oui | Active mock location
+Telephony_call | adb shell service call phone 2 s16 "1234567890" | Émulation | Parfois | Simule appel
+SMS_send | adb shell service call isms 5 s16 "com.android.mms" s16 "+1234567890" s16 "null" s16 "test" s16 "null" | Émulation | Parfois | Simule SMS
+Battery_level | adb shell dumpsys battery set level <0-100> | Émulation | Non | Simule niveau batterie
+Network_type | adb shell su -c "service call phone 27 i32 <type>" | Émulation | Oui | Simule type réseau
+Sensors_disable | adb shell su -c "service call sensorservice 10 i32 -1 i32 0" | Émulation | Oui | Désactive capteurs
+
+--- FACTORY RESET ET WIPE ---
+Factory_reset | adb shell am broadcast -a android.intent.action.MASTER_CLEAR | Reset | Parfois | Reset usine (peut échouer)
+Wipe_data | adb shell su -c "recovery --wipe_data" | Reset | Oui | Wipe données utilisateur
+Wipe_cache | adb shell su -c "recovery --wipe_cache" | Reset | Oui | Vide partition cache
+Format_data | adb shell su -c "make_ext4fs /dev/block/userdata" | Reset | Oui | Formate données
+Format_system | adb shell su -c "make_ext4fs /dev/block/system" | Reset | Oui | Formate système
+Format_cache | adb shell su -c "make_ext4fs /dev/block/cache" | Reset | Oui | Formate cache
+
+--- PARTITIONS ET IMAGES ---
+List_partitions | adb shell ls /dev/block/platform/*/by-name/ | Partitions | Non | Liste partitions
+Dump_boot | adb shell su -c "dd if=/dev/block/bootdevice/by-name/boot of=/sdcard/boot.img" | Partitions | Oui | Sauvegarde boot
+Dump_recovery | adb shell su -c "dd if=/dev/block/bootdevice/by-name/recovery of=/sdcard/recovery.img" | Partitions | Oui | Sauvegarde recovery
+Dump_system | adb shell su -c "dd if=/dev/block/bootdevice/by-name/system of=/sdcard/system.img" | Partitions | Oui | Sauvegarde système
+Flash_boot | adb shell su -c "dd if=/sdcard/boot.img of=/dev/block/bootdevice/by-name/boot" | Partitions | Oui | Flash boot
+Flash_recovery | adb shell su -c "dd if=/sdcard/recovery.img of=/dev/block/bootdevice/by-name/recovery" | Partitions | Oui | Flash recovery
+Partition_info | adb shell su -c "parted /dev/block/mmcblk0 print" | Partitions | Oui | Infos partitions détaillées
+
+--- BASEBAND ET RADIO ---
+Radio_info | adb shell dumpsys telephony.registry | Radio | Non | Infos radio/réseau
+Baseband_version | adb shell getprop ro.baseband | Radio | Non | Version baseband
+Radio_version | adb shell getprop gsm.version.ril-impl | Radio | Non | Version RIL
+IMEI_info | adb shell service call iphonesubinfo 1 | Radio | Parfois | Informations IMEI
+Signal_strength | adb shell dumpsys telephony.registry | grep mSignalStrength | Radio | Non | Force du signal
+Cell_info | adb shell dumpsys telephony.registry | grep mCell | Radio | Non | Infos cellules
+Network_operator | adb shell getprop gsm.operator.alpha | Radio | Non | Opérateur réseau
+Network_country | adb shell getprop gsm.operator.iso-country | Radio | Non | Code pays réseau
+Data_activity | adb shell dumpsys telephony.registry | grep mDataActivity | Radio | Non | Activité données
+
+--- ACCESSIBILITÉ ---
+Accessibility_services | adb shell settings get secure enabled_accessibility_services | Accessibilité | Non | Services accessibilité actifs
+TalkBack_enable | adb shell settings put secure enabled_accessibility_services com.google.android.marvin.talkback/.TalkBackService | Accessibilité | Non | Active TalkBack
+Magnification_enable | adb shell settings put secure accessibility_display_magnification_enabled 1 | Accessibilité | Non | Active loupe
+High_contrast | adb shell settings put secure high_text_contrast_enabled 1 | Accessibilité | Non | Contraste élevé
+Large_text | adb shell settings put system font_scale 1.3 | Accessibilité | Non | Texte agrandi
+Touch_exploration | adb shell settings put secure touch_exploration_enabled 1 | Accessibilité | Non | Exploration tactile
+
+--- GESTION UTILISATEURS (Multi-user) ---
+List_users | adb shell pm list users | Utilisateurs | Non | Liste utilisateurs
+Create_user | adb shell pm create-user <nom> | Utilisateurs | Non | Crée utilisateur
+Remove_user | adb shell pm remove-user <id> | Utilisateurs | Non | Supprime utilisateur
+Switch_user | adb shell am switch-user <id> | Utilisateurs | Non | Change d'utilisateur
+Current_user | adb shell am get-current-user | Utilisateurs | Non | Utilisateur actuel
+Install_user | adb shell pm install --user <id> <apk> | Utilisateurs | Non | Installe pour utilisateur
+Uninstall_user | adb shell pm uninstall --user <id> <package> | Utilisateurs | Non | Désinstalle pour utilisateur
+
+--- NOTIFICATIONS ---
+Notification_test | adb shell cmd notification post -S bigtext -t "Titre" "Tag" "Contenu" | Notifications | Non | Teste notification
+DND_on | adb shell settings put global zen_mode 1 | Notifications | Non | Mode Ne Pas Déranger
+DND_off | adb shell settings put global zen_mode 0 | Notifications | Non | Désactive DND
+Notification_access | adb shell settings get secure enabled_notification_listeners | Notifications | Non | Apps accès notifications
+
+--- DIVERS ET EXPÉRIMENTAL ---
+Easter_egg | adb shell am start -a android.intent.action.MAIN -n com.android.systemui/.egg.MLandActivity | Divers | Non | Easter egg Android
+Dalvik_heap | adb shell setprop dalvik.vm.heapsize 128m | Divers | Parfois | Taille heap Dalvik
+JIT_enable | adb shell setprop dalvik.vm.usejit true | Divers | Non | Active compilateur JIT
+ART_enable | adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so | Divers | Parfois | Force runtime ART
+Verify_apps | adb shell settings put global verifier_verify_adb_installs 0 | Divers | Non | Désactive vérification APK
+Unknown_sources | adb shell settings put secure install_non_market_apps 1 | Divers | Non | Autorise sources inconnues
+USB_debugging | adb shell settings put global adb_enabled 1 | Divers | Non | Active débogage USB
+Mock_location | adb shell settings put secure mock_location 1 | Divers | Non | Autorise position factice
+OEM_unlock | adb shell settings put global oem_unlock_supported 1 | Divers | Parfois | Support déverrouillage OEM
+Doze_disable | adb shell dumpsys deviceidle disable | Divers | Non | Désactive mode Doze
+App_standby_disable | adb shell dumpsys usagestats set-app-standby-enabled false | Divers | Non | Désactive mise en veille apps
+
+============================================
+TOTAL: 400+ commandes ADB référencées
+Format: NOM | COMMANDE | CATÉGORIE | ROOT_REQUIS | DESCRIPTION
+
+LÉGENDE ROOT_REQUIS:
+- Oui: Root obligatoire
+- Non: Fonctionne sans root
+- Parfois: Dépend de la version Android/appareil
+
+CATÉGORIES:
+Connexion, Redémarrage, Shell, Fichiers, Navigation, Permissions, 
+Lecture, Archives, Applications, Lancement, Système, Mémoire, 
+Batterie, Paramètres, Réseau, Écran, Entrées, Audio, Bluetooth, 
+Logs, Debug, Sauvegarde, Sécurité, Développement, Performances, 
+Root, Monitoring, Tests, Émulation, Reset, Partitions, Radio, 
+Accessibilité, Utilisateurs, Notifications, Divers
+
+============================================

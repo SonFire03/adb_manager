@@ -1,0 +1,43 @@
+{
+  "app": {
+    "name": "ADB Manager Pro",
+    "language": "fr",
+    "theme": "dark",
+    "accent": "#2563eb",
+    "refresh_interval_ms": 2500,
+    "safe_mode": true
+  },
+  "adb": {
+    "binary": "adb",
+    "default_timeout": 20,
+    "auto_reconnect": true,
+    "wifi_scan_ports": [
+      5555,
+      5556,
+      5557
+    ]
+  },
+  "backup": {
+    "default_dir": "./backups",
+    "compression": true
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "adb_manager.log",
+    "max_bytes": 1048576,
+    "backup_count": 3
+  },
+  "ui": {
+    "density": "comfortable",
+    "command_root_filter": "Sans root",
+    "command_search": "",
+    "command_favorites_only": false,
+    "sidebar_collapsed": false,
+    "confirm_critical_commands": true,
+    "logcat_auto_scroll": true,
+    "batch_workers": 2,
+    "batch_retry": 1,
+    "batch_timeout_s": 120,
+    "batch_stop_on_error": false
+  }
+}
