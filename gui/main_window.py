@@ -4,6 +4,7 @@ import ipaddress
 import json
 import logging
 import os
+import csv
 import re
 import shlex
 import shutil
@@ -63,7 +64,10 @@ from gui.widgets import ScriptEditor, TerminalWidget, Toast
 from modules.app_manager import AppManagerModule
 from modules.automation import AutomationModule
 from modules.backup_restore import BackupRestoreModule
+from modules.device_inspector import DeviceInspectorModule
+from modules.device_profiles import DeviceProfile, DeviceProfilesModule
 from modules.file_manager import FileManagerModule
+from modules.health_check import HealthCheckModule
 from modules.system_info import SystemInfoModule
 
 logger = logging.getLogger(__name__)
@@ -87,8 +91,11 @@ class MainWindow(QMainWindow):
         self.file_module = FileManagerModule(self.adb)
         self.app_module = AppManagerModule(self.adb)
         self.system_module = SystemInfoModule(self.adb)
+        self.inspector_module = DeviceInspectorModule(self.adb)
+        self.health_module = HealthCheckModule(self.adb)
         self.automation_module = AutomationModule(self.adb, base_dir / "config")
         self.backup_module = BackupRestoreModule(self.adb, base_dir / "backups")
+        self.profiles_module = DeviceProfilesModule(config)
 
         self.bridge = UiBridge()
         self.bridge.device_list_updated.connect(self._on_devices_updated)
@@ -131,6 +138,16 @@ class MainWindow(QMainWindow):
         self._app_icon_done = 0
         self._app_icon_success = 0
         self._app_icon_generation = 0
+        self._device_inspector_data: dict[str, str] = {}
+        self._health_report: dict = {}
+        self._profiles_suppress_autoload = False
+        self._profiles_last_loaded_serial = ""
+        self._apps_all_packages: list[str] = []
+        self._app_analysis: dict[str, dict[str, object]] = {}
+        self._app_analysis_queue: list[str] = []
+        self._app_analysis_pending: set[str] = set()
+        self._app_analysis_max_pending = 3
+        self._app_analysis_generation = 0
 
         self.setWindowTitle("ADB Manager Pro")
         self.resize(1440, 920)
@@ -201,6 +218,15 @@ class MainWindow(QMainWindow):
         self.lang_box.setCurrentText(str(self.config.get("app.language", "fr")))
         self.device_box = QComboBox()
         self.device_box.setMinimumWidth(260)
+        self.profile_box = QComboBox()
+        self.profile_box.setMinimumWidth(210)
+        self.profile_box.addItem("Profil: aucun", "")
+        self.profile_save_btn = QPushButton("Sauver profil")
+        self.profile_load_btn = QPushButton("Charger profil")
+        self.profile_delete_btn = QPushButton("Supprimer profil")
+        self.profile_save_btn.setObjectName("ghostBtn")
+        self.profile_load_btn.setObjectName("ghostBtn")
+        self.profile_delete_btn.setObjectName("dangerBtn")
         self.quick_command_input = QLineEdit()
         self.quick_command_input.setObjectName("quickCommandInput")
         self.quick_command_input.setPlaceholderText("Commande rapide (ex: shell getprop ro.product.model)")
@@ -210,6 +236,11 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.sidebar_toggle_btn)
         toolbar.addWidget(QLabel("Appareil actif:"))
         toolbar.addWidget(self.device_box)
+        toolbar.addWidget(QLabel("Profil:"))
+        toolbar.addWidget(self.profile_box)
+        toolbar.addWidget(self.profile_save_btn)
+        toolbar.addWidget(self.profile_load_btn)
+        toolbar.addWidget(self.profile_delete_btn)
         toolbar.addWidget(self.refresh_btn)
         toolbar.addWidget(self.connect_wifi_btn)
         toolbar.addWidget(self.pair_wifi_btn)
@@ -284,12 +315,25 @@ class MainWindow(QMainWindow):
         self.sidebar_toggle_btn.clicked.connect(self._toggle_sidebar)
         self.quick_command_btn.clicked.connect(self._run_quick_command)
         self.quick_command_input.returnPressed.connect(self._run_quick_command)
+        self.device_box.currentIndexChanged.connect(self._on_active_device_changed)
+        self.profile_save_btn.clicked.connect(self._save_device_profile)
+        self.profile_load_btn.clicked.connect(self._load_selected_profile)
+        self.profile_delete_btn.clicked.connect(self._delete_selected_profile)
+        self.profile_box.currentIndexChanged.connect(self._profile_selection_changed)
+        self._refresh_profile_box()
 
         self.clock_timer = QTimer(self)
         self.clock_timer.timeout.connect(self._tick_clock)
         self.clock_timer.start(1000)
         self._tick_clock()
         self._update_responsive_layout()
+
+    def _on_active_device_changed(self, _index: int) -> None:
+        serial = self._selected_serial() or ""
+        if serial:
+            self._autoload_profile_for_device(serial)
+        self._refresh_device_inspector()
+        self._run_health_check()
 
     def _build_dashboard_tab(self) -> None:
         tab = QWidget()
@@ -350,6 +394,55 @@ class MainWindow(QMainWindow):
         split.setStretchFactor(0, 3)
         split.setStretchFactor(1, 2)
         layout.addWidget(split)
+
+        insight_split = QSplitter()
+        insight_split.setChildrenCollapsible(False)
+        inspector_group = QGroupBox("Device Inspector")
+        inspector_group.setObjectName("panelCard")
+        inspector_layout = QVBoxLayout(inspector_group)
+        inspector_layout.setContentsMargins(10, 10, 10, 10)
+        inspector_top = QHBoxLayout()
+        self.inspector_refresh_btn = QPushButton("Refresh Inspector")
+        self.inspector_refresh_btn.setObjectName("successBtn")
+        self.inspector_export_btn = QPushButton("Export Inspector JSON")
+        self.inspector_export_btn.setObjectName("ghostBtn")
+        inspector_top.addWidget(self.inspector_refresh_btn)
+        inspector_top.addWidget(self.inspector_export_btn)
+        inspector_top.addStretch()
+        inspector_layout.addLayout(inspector_top)
+        self.inspector_text = QTextEdit()
+        self.inspector_text.setReadOnly(True)
+        self.inspector_text.setPlaceholderText("Inspector appareil: marque, modele, batterie, stockage, ecran, IP, debug...")
+        self.inspector_text.setMinimumHeight(180)
+        inspector_layout.addWidget(self.inspector_text)
+
+        health_group = QGroupBox("ADB Health Check")
+        health_group.setObjectName("panelCard")
+        health_layout = QVBoxLayout(health_group)
+        health_layout.setContentsMargins(10, 10, 10, 10)
+        health_top = QHBoxLayout()
+        self.health_run_btn = QPushButton("Run Health Check")
+        self.health_run_btn.setObjectName("successBtn")
+        self.health_export_btn = QPushButton("Export Health JSON")
+        self.health_export_btn.setObjectName("ghostBtn")
+        self.health_status_badge = QLabel("Global: n/a")
+        self.health_status_badge.setObjectName("deviceBadge")
+        health_top.addWidget(self.health_run_btn)
+        health_top.addWidget(self.health_export_btn)
+        health_top.addStretch()
+        health_top.addWidget(self.health_status_badge)
+        health_layout.addLayout(health_top)
+        self.health_text = QTextEdit()
+        self.health_text.setReadOnly(True)
+        self.health_text.setPlaceholderText("Checks ADB: binaire, serveur, auth RSA, latence, commandes critiques...")
+        self.health_text.setMinimumHeight(180)
+        health_layout.addWidget(self.health_text)
+
+        insight_split.addWidget(inspector_group)
+        insight_split.addWidget(health_group)
+        insight_split.setStretchFactor(0, 1)
+        insight_split.setStretchFactor(1, 1)
+        layout.addWidget(insight_split)
         self.tabs.addTab(tab, "Dashboard")
 
         self.reboot_btn.clicked.connect(self._reboot_device)
@@ -357,6 +450,10 @@ class MainWindow(QMainWindow):
         self.record_start_btn.clicked.connect(self._start_screen_record)
         self.record_stop_btn.clicked.connect(self._stop_screen_record)
         self.export_report_btn.clicked.connect(self._export_report)
+        self.inspector_refresh_btn.clicked.connect(self._refresh_device_inspector)
+        self.inspector_export_btn.clicked.connect(self._export_device_inspector)
+        self.health_run_btn.clicked.connect(self._run_health_check)
+        self.health_export_btn.clicked.connect(self._export_health_report)
 
     def _build_metric_card(self, label: str, value: str, value_attr: str) -> QWidget:
         card = QWidget()
@@ -507,25 +604,42 @@ class MainWindow(QMainWindow):
         controls = QHBoxLayout()
         self.apps_scope = QComboBox()
         self.apps_scope.addItems(["Utilisateur", "Systeme+Utilisateur"])
+        self.apps_search = QLineEdit()
+        self.apps_search.setPlaceholderText("Rechercher package/app...")
+        self.apps_risk_filter = QComboBox()
+        self.apps_risk_filter.addItems(["Tous risques", "LOW", "MEDIUM", "HIGH", "Sans analyse"])
+        self.apps_sort_box = QComboBox()
+        self.apps_sort_box.addItems(["Tri: Nom", "Tri: Risque", "Tri: Permissions"])
         self.apps_refresh_btn = QPushButton("Charger apps")
         self.apps_install_btn = QPushButton("Installer APK")
         self.apps_uninstall_btn = QPushButton("Desinstaller")
         self.apps_clear_btn = QPushButton("Nettoyer data")
         self.apps_fetch_icons_btn = QPushButton("Recuperer icones")
+        self.apps_export_json_btn = QPushButton("Export Apps JSON")
+        self.apps_export_csv_btn = QPushButton("Export Apps CSV")
         self.apps_refresh_btn.setObjectName("successBtn")
         self.apps_install_btn.setObjectName("successBtn")
         self.apps_uninstall_btn.setObjectName("dangerBtn")
         self.apps_clear_btn.setObjectName("ghostBtn")
         self.apps_fetch_icons_btn.setObjectName("ghostBtn")
+        self.apps_export_json_btn.setObjectName("ghostBtn")
+        self.apps_export_csv_btn.setObjectName("ghostBtn")
         controls.addWidget(self.apps_scope)
+        controls.addWidget(self.apps_search, 1)
+        controls.addWidget(self.apps_risk_filter)
+        controls.addWidget(self.apps_sort_box)
         controls.addWidget(self.apps_refresh_btn)
         controls.addWidget(self.apps_install_btn)
         controls.addWidget(self.apps_uninstall_btn)
         controls.addWidget(self.apps_clear_btn)
         controls.addWidget(self.apps_fetch_icons_btn)
+        controls.addWidget(self.apps_export_json_btn)
+        controls.addWidget(self.apps_export_csv_btn)
         controls.addStretch()
         layout.addLayout(controls)
 
+        split = QSplitter(Qt.Orientation.Horizontal)
+        split.setChildrenCollapsible(False)
         self.apps_list = QListWidget()
         self.apps_list.setObjectName("appsGrid")
         self.apps_list.setViewMode(QListView.ViewMode.IconMode)
@@ -537,7 +651,36 @@ class MainWindow(QMainWindow):
         self.apps_list.setWordWrap(True)
         self.apps_list.setSpacing(8)
         self.apps_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        layout.addWidget(self.apps_list)
+        split.addWidget(self.apps_list)
+
+        right = QWidget()
+        right_l = QVBoxLayout(right)
+        right_l.setContentsMargins(0, 0, 0, 0)
+        right_l.setSpacing(8)
+
+        self.apps_detail_text = QTextEdit()
+        self.apps_detail_text.setReadOnly(True)
+        self.apps_detail_text.setObjectName("commandDetails")
+        self.apps_detail_text.setPlaceholderText("Selectionne une app pour voir package, version, permissions sensibles et risque.")
+        self.apps_detail_text.setMinimumHeight(180)
+        right_l.addWidget(self.apps_detail_text)
+
+        self.apps_risk_summary = QLabel("Risque apps: LOW=0 MEDIUM=0 HIGH=0")
+        self.apps_risk_summary.setObjectName("metricLabel")
+        right_l.addWidget(self.apps_risk_summary)
+
+        self.apps_risk_table = QTableWidget(0, 7)
+        self.apps_risk_table.setHorizontalHeaderLabels(
+            ["Package", "Label", "Type", "Risque", "Perms", "Sensibles", "Version"]
+        )
+        self.apps_risk_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.apps_risk_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.apps_risk_table.setSortingEnabled(True)
+        right_l.addWidget(self.apps_risk_table, 1)
+        split.addWidget(right)
+        split.setStretchFactor(0, 3)
+        split.setStretchFactor(1, 2)
+        layout.addWidget(split, 1)
         self.tabs.addTab(tab, "Applications")
 
         self.apps_refresh_btn.clicked.connect(self._list_apps)
@@ -545,7 +688,13 @@ class MainWindow(QMainWindow):
         self.apps_uninstall_btn.clicked.connect(self._uninstall_app)
         self.apps_clear_btn.clicked.connect(self._clear_app_data)
         self.apps_fetch_icons_btn.clicked.connect(self._fetch_all_app_icons)
+        self.apps_export_json_btn.clicked.connect(self._export_apps_analysis_json)
+        self.apps_export_csv_btn.clicked.connect(self._export_apps_analysis_csv)
+        self.apps_search.textChanged.connect(self._apply_apps_filters)
+        self.apps_risk_filter.currentTextChanged.connect(self._apply_apps_filters)
+        self.apps_sort_box.currentTextChanged.connect(self._apply_apps_filters)
         self.apps_list.currentItemChanged.connect(self._on_apps_item_changed)
+        self.apps_risk_table.itemSelectionChanged.connect(self._sync_apps_selection_from_table)
 
     def _build_system_tab(self) -> None:
         tab = QWidget()
@@ -2042,12 +2191,25 @@ class MainWindow(QMainWindow):
             self.metric_root_value.setText(str(root_count))
         if hasattr(self, "metric_active_value"):
             self.metric_active_value.setText(devices[0].serial if devices else "-")
+        previous_serial = str(self.device_box.currentData() or "") if self.device_box.count() else ""
+        self.device_box.blockSignals(True)
         self.device_box.clear()
         for dev in devices:
             self.device_box.addItem(f"{dev.serial} ({dev.model})", dev.serial)
+        if previous_serial:
+            idx_prev = self.device_box.findData(previous_serial)
+            if idx_prev >= 0:
+                self.device_box.setCurrentIndex(idx_prev)
+        current_serial = str(self.device_box.currentData() or "") if self.device_box.count() else ""
+        self.device_box.blockSignals(False)
+        self._refresh_profile_box()
+        if current_serial:
+            self._autoload_profile_for_device(current_serial)
         self._refresh_remote_device_box()
         self._refresh_remote_targets_list()
         self._refresh_remote_control_center()
+        if current_serial != previous_serial:
+            self._on_active_device_changed(-1)
 
         self.device_table.setRowCount(len(devices))
         for row, dev in enumerate(devices):
@@ -2071,6 +2233,218 @@ class MainWindow(QMainWindow):
         self._list_local()
         self._list_remote()
         self._refresh_captures()
+        self._refresh_device_inspector()
+        self._run_health_check()
+
+    def _refresh_profile_box(self) -> None:
+        if not hasattr(self, "profile_box"):
+            return
+        current = str(self.profile_box.currentData() or "")
+        profiles = self.profiles_module.list_profiles()
+        self.profile_box.blockSignals(True)
+        self.profile_box.clear()
+        self.profile_box.addItem("Profil: aucun", "")
+        for profile in profiles:
+            label = f"{profile.alias} [{profile.serial}]"
+            self.profile_box.addItem(label, profile.profile_id)
+        if current:
+            idx = self.profile_box.findData(current)
+            if idx >= 0:
+                self.profile_box.setCurrentIndex(idx)
+        self.profile_box.blockSignals(False)
+
+    def _selected_profile(self) -> DeviceProfile | None:
+        profile_id = str(self.profile_box.currentData() or "").strip() if hasattr(self, "profile_box") else ""
+        if not profile_id:
+            return None
+        for profile in self.profiles_module.list_profiles():
+            if profile.profile_id == profile_id:
+                return profile
+        return None
+
+    def _profile_selection_changed(self, _index: int) -> None:
+        profile = self._selected_profile()
+        if profile is None:
+            return
+        self.statusBar().showMessage(f"Profil selectionne: {profile.alias}")
+
+    def _save_device_profile(self) -> None:
+        serial = self._selected_serial()
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        current = self.profiles_module.find_match(serial)
+        default_alias = current.alias if current else (self._current_device_info().model if self._current_device_info() else serial)
+        alias, ok = QInputDialog.getText(self, "Sauver profil appareil", "Alias du profil", text=default_alias)
+        if not ok or not alias.strip():
+            return
+        tags_raw, _ = QInputDialog.getText(self, "Tags profil", "Tags (optionnel, separes par virgule)")
+        tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+        remote = self.remote_path.text().strip() if hasattr(self, "remote_path") else ""
+        local = self.local_path.text().strip() if hasattr(self, "local_path") else ""
+        wifi_endpoint = serial if ":" in serial else ""
+        profile = DeviceProfile(
+            profile_id=current.profile_id if current is not None else "",
+            alias=alias.strip(),
+            serial=serial,
+            wifi_endpoint=wifi_endpoint,
+            favorite_local_path=local,
+            favorite_remote_path=remote,
+            last_actions=[f"saved:{datetime.now().strftime('%H:%M:%S')}"],
+            favorite_commands=sorted(self._favorite_commands),
+            ui_theme=str(self.theme_box.currentText()),
+            ui_density=str(self.density_box.currentText()),
+            language=str(self.lang_box.currentText()),
+            tags=tags,
+        )
+        saved = self.profiles_module.save_profile(profile)
+        self._refresh_profile_box()
+        idx = self.profile_box.findData(saved.profile_id)
+        if idx >= 0:
+            self.profile_box.setCurrentIndex(idx)
+        Toast(self, f"Profil sauve: {saved.alias}")
+
+    def _load_selected_profile(self) -> None:
+        profile = self._selected_profile()
+        if profile is None:
+            Toast(self, "Selectionne un profil")
+            return
+        self._apply_profile(profile)
+        Toast(self, f"Profil charge: {profile.alias}")
+
+    def _apply_profile(self, profile: DeviceProfile) -> None:
+        self._profiles_suppress_autoload = True
+        try:
+            if hasattr(self, "device_box"):
+                idx = self.device_box.findData(profile.serial)
+                if idx >= 0:
+                    self.device_box.setCurrentIndex(idx)
+            if profile.favorite_local_path and hasattr(self, "local_path"):
+                self.local_path.setText(profile.favorite_local_path)
+            if profile.favorite_remote_path and hasattr(self, "remote_path"):
+                self.remote_path.setText(profile.favorite_remote_path)
+            if profile.ui_theme and hasattr(self, "theme_box"):
+                self.theme_box.setCurrentText(profile.ui_theme)
+            if profile.ui_density and hasattr(self, "density_box"):
+                self.density_box.setCurrentText(profile.ui_density)
+            if profile.language and hasattr(self, "lang_box"):
+                self.lang_box.setCurrentText(profile.language)
+            if profile.favorite_commands:
+                self._favorite_commands = set(profile.favorite_commands)
+                self._save_favorite_commands()
+                self._rebuild_command_catalog()
+            self._profiles_last_loaded_serial = profile.serial
+            if hasattr(self, "local_path"):
+                self._list_local()
+            if hasattr(self, "remote_path"):
+                self._list_remote()
+        finally:
+            self._profiles_suppress_autoload = False
+
+    def _delete_selected_profile(self) -> None:
+        profile = self._selected_profile()
+        if profile is None:
+            return
+        reply = QMessageBox.question(self, "Suppression profil", f"Supprimer le profil '{profile.alias}' ?")
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self.profiles_module.delete_profile(profile.profile_id)
+        self._refresh_profile_box()
+        Toast(self, "Profil supprime")
+
+    def _autoload_profile_for_device(self, serial: str) -> None:
+        if self._profiles_suppress_autoload:
+            return
+        if serial == self._profiles_last_loaded_serial:
+            return
+        if not bool(self.config.get("profiles.auto_load", True)):
+            return
+        profile = self.profiles_module.find_match(serial)
+        if profile is None:
+            return
+        idx = self.profile_box.findData(profile.profile_id) if hasattr(self, "profile_box") else -1
+        if idx >= 0:
+            self.profile_box.setCurrentIndex(idx)
+        self._apply_profile(profile)
+        self.statusBar().showMessage(f"Profil auto-charge: {profile.alias}")
+
+    def _refresh_device_inspector(self) -> None:
+        serial = self._selected_serial()
+        if not serial:
+            if hasattr(self, "inspector_text"):
+                self.inspector_text.setPlainText("Aucun appareil actif.")
+            return
+        self._run_in_worker("device_inspector", lambda: self.inspector_module.inspect(serial, self._current_device_info()), {"serial": serial})
+
+    def _render_device_inspector(self, info: dict[str, str]) -> None:
+        self._device_inspector_data = info
+        lines = [
+            f"Marque: {info.get('brand', 'n/a')}",
+            f"Constructeur: {info.get('manufacturer', 'n/a')}",
+            f"Modele: {info.get('model', 'n/a')}",
+            f"Serial: {info.get('serial', 'n/a')}",
+            f"Transport: {info.get('transport', 'n/a')}",
+            f"Etat ADB: {info.get('state', 'n/a')}",
+            f"Android: {info.get('android_version', 'n/a')} (SDK {info.get('sdk', 'n/a')})",
+            f"Batterie: {info.get('battery_level', 'n/a')} (status {info.get('battery_status', 'n/a')})",
+            f"Stockage: {info.get('storage_available', 'n/a')} libres / {info.get('storage_total', 'n/a')}",
+            f"ABI CPU: {info.get('abi', 'n/a')}",
+            f"ABI list: {info.get('abi_list', 'n/a')}",
+            f"IP locale: {info.get('ip_local', 'n/a')}",
+            f"Ecran: {info.get('screen_resolution', 'n/a')} | densite {info.get('screen_density', 'n/a')}",
+            f"Root: {info.get('root', 'n/a')}",
+            f"Debug: {info.get('debug_status', 'n/a')} (ro.debuggable={info.get('debuggable', 'n/a')})",
+            f"Dernier refresh: {info.get('last_refresh', 'n/a')}",
+        ]
+        self.inspector_text.setPlainText("\n".join(lines))
+
+    def _export_device_inspector(self) -> None:
+        if not self._device_inspector_data:
+            Toast(self, "Aucune donnee inspector a exporter")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exporter Device Inspector",
+            str(self.base_dir / f"device_inspector_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        Path(path).write_text(json.dumps(self._device_inspector_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        Toast(self, "Inspector exporte")
+
+    def _run_health_check(self) -> None:
+        serial = self._selected_serial()
+        self._run_in_worker("health_check", lambda: self.health_module.run(self._last_devices, serial), {"serial": serial or ""})
+
+    def _render_health_report(self, report: dict) -> None:
+        self._health_report = report
+        status = str(report.get("status", "n/a"))
+        self.health_status_badge.setText(f"Global: {status}")
+        parts = [str(report.get("summary", "")), ""]
+        for check in report.get("checks", []):
+            if not isinstance(check, dict):
+                continue
+            parts.append(f"[{check.get('status', 'n/a')}] {check.get('name', 'check')}: {check.get('message', '')}")
+            remediation = str(check.get("remediation", "")).strip()
+            if remediation:
+                parts.append(f"  -> Remediation: {remediation}")
+        self.health_text.setPlainText("\n".join(parts))
+
+    def _export_health_report(self) -> None:
+        if not self._health_report:
+            Toast(self, "Aucun rapport health check")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exporter Health Check",
+            str(self.base_dir / f"adb_health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        Path(path).write_text(json.dumps(self._health_report, indent=2, ensure_ascii=False), encoding="utf-8")
+        Toast(self, "Health check exporte")
 
     def _run_in_worker(self, task: str, fn, context: dict | None = None) -> None:
         self.statusBar().showMessage(f"Operation en cours: {task}...")
@@ -2115,6 +2489,18 @@ class MainWindow(QMainWindow):
                 "=== TOP ===\n" + str(snap.get("top", ""))[:5000] + "\n\n=== MEMINFO ===\n" + str(snap.get("meminfo", ""))[:5000]
             )
             self.statusBar().showMessage("Snapshot monitoring termine")
+            return
+
+        if task == "device_inspector":
+            info = value if isinstance(value, dict) else {}
+            self._render_device_inspector({str(k): str(v) for k, v in info.items()})
+            self.statusBar().showMessage("Device Inspector rafraichi")
+            return
+
+        if task == "health_check":
+            report = value if isinstance(value, dict) else {}
+            self._render_health_report(report)
+            self.statusBar().showMessage("ADB Health Check termine")
             return
 
         if task in {"push_file", "pull_file", "install_apk", "uninstall_app", "clear_app_data", "full_backup", "selective_backup", "restore_backup"}:
@@ -2649,6 +3035,13 @@ class MainWindow(QMainWindow):
         self._app_icon_total = 0
         self._app_icon_done = 0
         self._app_icon_success = 0
+        self._app_analysis.clear()
+        self._app_analysis_queue.clear()
+        self._app_analysis_pending.clear()
+        self._app_analysis_generation += 1
+        self.apps_detail_text.clear()
+        self.apps_risk_table.setRowCount(0)
+        self.apps_risk_summary.setText("Risque apps: LOW=0 MEDIUM=0 HIGH=0")
         self._run_in_worker(
             "apps_list",
             lambda: self.app_module.list_packages(serial, include_system=include_system),
@@ -2684,6 +3077,7 @@ class MainWindow(QMainWindow):
         self.apps_list.clear()
         default_icon = self._default_app_icon()
         serial = self._selected_serial()
+        self._apps_all_packages = list(apps)
         self._app_icon_generation += 1
         self._app_icon_queue.clear()
         self._app_icon_pending.clear()
@@ -2708,6 +3102,8 @@ class MainWindow(QMainWindow):
                 self._app_icon_queue.append(package)
         self._app_icon_total = len(self._app_icon_queue)
         self._pump_app_icon_queue(serial)
+        self._start_app_analysis(serial, apps)
+        self._apply_apps_filters()
 
     def _fetch_all_app_icons(self) -> None:
         serial = self._selected_serial()
@@ -2785,6 +3181,241 @@ class MainWindow(QMainWindow):
                 item.setIcon(icon)
                 break
 
+    def _start_app_analysis(self, serial: str | None, packages: list[str]) -> None:
+        if not serial:
+            return
+        self._app_analysis_generation += 1
+        self._app_analysis_queue = list(packages)
+        self._app_analysis_pending.clear()
+        self._pump_app_analysis_queue(serial)
+
+    def _pump_app_analysis_queue(self, serial: str) -> None:
+        while len(self._app_analysis_pending) < self._app_analysis_max_pending and self._app_analysis_queue:
+            package = self._app_analysis_queue.pop(0)
+            self._queue_app_analysis(serial, package)
+
+    def _queue_app_analysis(self, serial: str, package: str) -> None:
+        key = f"{serial}:{package}"
+        generation = self._app_analysis_generation
+        if key in self._app_analysis_pending:
+            return
+        self._app_analysis_pending.add(key)
+
+        def work() -> dict:
+            out = self.app_module.analyze_app(serial, package)
+            out["serial"] = serial
+            out["package"] = package
+            out["generation"] = generation
+            return out
+
+        def done(future) -> None:
+            try:
+                payload = future.result()
+            except Exception as exc:  # noqa: BLE001
+                payload = {
+                    "serial": serial,
+                    "package": package,
+                    "generation": generation,
+                    "error": f"analysis failed: {exc}",
+                }
+            self.bridge.command_done.emit(("app_risk", payload))
+
+        self.adb.executor.submit(work).add_done_callback(done)
+
+    def _risk_rank(self, risk: str) -> int:
+        mapping = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}
+        return mapping.get(risk.upper(), 0)
+
+    def _apply_apps_filters(self) -> None:
+        search = self.apps_search.text().strip().lower() if hasattr(self, "apps_search") else ""
+        risk_filter = self.apps_risk_filter.currentText() if hasattr(self, "apps_risk_filter") else "Tous risques"
+
+        for i in range(self.apps_list.count()):
+            item = self.apps_list.item(i)
+            if item is None:
+                continue
+            package = str(item.data(Qt.ItemDataRole.UserRole) or "").strip()
+            display = item.text().strip().lower()
+            analysis = self._app_analysis.get(package, {})
+            risk = str(analysis.get("risk", "")).upper()
+            match_search = (not search) or (search in package.lower()) or (search in display)
+            if risk_filter == "Tous risques":
+                match_risk = True
+            elif risk_filter == "Sans analyse":
+                match_risk = not risk
+            else:
+                match_risk = risk == risk_filter
+            item.setHidden(not (match_search and match_risk))
+
+        self._refresh_apps_risk_table(search=search, risk_filter=risk_filter)
+
+    def _refresh_apps_risk_table(self, search: str = "", risk_filter: str = "Tous risques") -> None:
+        rows: list[dict[str, object]] = []
+        for package in self._apps_all_packages:
+            analysis = self._app_analysis.get(package, {})
+            risk = str(analysis.get("risk", "")).upper()
+            label = str(analysis.get("label", self._display_name_for_package(package)))
+            if search and search not in package.lower() and search not in label.lower():
+                continue
+            if risk_filter != "Tous risques":
+                if risk_filter == "Sans analyse":
+                    if risk:
+                        continue
+                elif risk != risk_filter:
+                    continue
+            rows.append({
+                "package": package,
+                "label": label,
+                "type": str(analysis.get("type", "n/a")),
+                "risk": risk or "n/a",
+                "perm_count": int(analysis.get("permission_count", 0) or 0),
+                "sensitive_count": len(analysis.get("sensitive_permissions", []) or []),
+                "version": str(analysis.get("version", "n/a")),
+                "risk_score": int(analysis.get("risk_score", 0) or 0),
+            })
+
+        sort_mode = self.apps_sort_box.currentText() if hasattr(self, "apps_sort_box") else "Tri: Nom"
+        if "Risque" in sort_mode:
+            rows.sort(key=lambda r: (self._risk_rank(str(r["risk"])), int(r["risk_score"]), int(r["perm_count"]), str(r["package"]).lower()), reverse=True)
+        elif "Permissions" in sort_mode:
+            rows.sort(key=lambda r: (int(r["perm_count"]), int(r["sensitive_count"]), self._risk_rank(str(r["risk"]))), reverse=True)
+        else:
+            rows.sort(key=lambda r: str(r["package"]).lower())
+
+        self.apps_risk_table.setSortingEnabled(False)
+        self.apps_risk_table.setRowCount(len(rows))
+        for row, item in enumerate(rows):
+            self.apps_risk_table.setItem(row, 0, QTableWidgetItem(str(item["package"])))
+            self.apps_risk_table.setItem(row, 1, QTableWidgetItem(str(item["label"])))
+            self.apps_risk_table.setItem(row, 2, QTableWidgetItem(str(item["type"])))
+            risk_item = QTableWidgetItem(str(item["risk"]))
+            risk = str(item["risk"]).upper()
+            if risk == "HIGH":
+                risk_item.setForeground(QColor("#fca5a5"))
+            elif risk == "MEDIUM":
+                risk_item.setForeground(QColor("#fcd34d"))
+            elif risk == "LOW":
+                risk_item.setForeground(QColor("#86efac"))
+            self.apps_risk_table.setItem(row, 3, risk_item)
+            self.apps_risk_table.setItem(row, 4, QTableWidgetItem(str(item["perm_count"])))
+            self.apps_risk_table.setItem(row, 5, QTableWidgetItem(str(item["sensitive_count"])))
+            self.apps_risk_table.setItem(row, 6, QTableWidgetItem(str(item["version"])))
+        self.apps_risk_table.setSortingEnabled(True)
+
+        low = sum(1 for a in self._app_analysis.values() if str(a.get("risk", "")).upper() == "LOW")
+        med = sum(1 for a in self._app_analysis.values() if str(a.get("risk", "")).upper() == "MEDIUM")
+        high = sum(1 for a in self._app_analysis.values() if str(a.get("risk", "")).upper() == "HIGH")
+        self.apps_risk_summary.setText(f"Risque apps: LOW={low} MEDIUM={med} HIGH={high}")
+
+    def _show_app_analysis(self, package: str) -> None:
+        info = self._app_analysis.get(package)
+        if not info:
+            self.apps_detail_text.setPlainText(f"Analyse en cours pour {package} ...")
+            return
+        perms = info.get("permissions", []) or []
+        sens = info.get("sensitive_permissions", []) or []
+        lines = [
+            f"Package: {package}",
+            f"Label: {info.get('label', self._display_name_for_package(package))}",
+            f"Type: {info.get('type', 'n/a')}",
+            f"Version: {info.get('version', 'n/a')}",
+            f"Install: {info.get('first_install_time', 'n/a')}",
+            f"Update: {info.get('last_update_time', 'n/a')}",
+            f"Code path: {info.get('code_path', 'n/a')}",
+            f"Data size: {info.get('data_size', 'n/a')} | Cache size: {info.get('cache_size', 'n/a')}",
+            f"Permissions: {len(perms)} | Sensibles: {len(sens)}",
+            f"Risque: {info.get('risk', 'n/a')} (score={info.get('risk_score', 0)})",
+        ]
+        if sens:
+            lines.append("")
+            lines.append("Permissions sensibles:")
+            lines.extend(f"- {perm}" for perm in sens)
+        if info.get("error"):
+            lines.append("")
+            lines.append(f"Erreur analyse: {info.get('error')}")
+        self.apps_detail_text.setPlainText("\n".join(lines))
+
+    def _sync_apps_selection_from_table(self) -> None:
+        selected = self.apps_risk_table.selectedItems()
+        if not selected:
+            return
+        package = selected[0].text().strip()
+        if not package:
+            return
+        for i in range(self.apps_list.count()):
+            item = self.apps_list.item(i)
+            if item is None:
+                continue
+            if str(item.data(Qt.ItemDataRole.UserRole) or "").strip() == package:
+                self.apps_list.setCurrentRow(i)
+                break
+
+    def _export_apps_analysis_json(self) -> None:
+        serial = self._selected_serial() or ""
+        payload = {
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "serial": serial,
+            "apps_total": len(self._apps_all_packages),
+            "apps_analyzed": len(self._app_analysis),
+            "analysis": self._app_analysis,
+        }
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exporter analyse apps (JSON)",
+            str(self.base_dir / f"apps_risk_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        Path(path).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        Toast(self, "Analyse apps exportee (JSON)")
+
+    def _export_apps_analysis_csv(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exporter analyse apps (CSV)",
+            str(self.base_dir / f"apps_risk_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"),
+            "CSV (*.csv)",
+        )
+        if not path:
+            return
+        rows = []
+        for package in self._apps_all_packages:
+            info = self._app_analysis.get(package, {})
+            rows.append(
+                {
+                    "package": package,
+                    "label": str(info.get("label", self._display_name_for_package(package))),
+                    "type": str(info.get("type", "n/a")),
+                    "risk": str(info.get("risk", "n/a")),
+                    "risk_score": int(info.get("risk_score", 0) or 0),
+                    "permission_count": int(info.get("permission_count", 0) or 0),
+                    "sensitive_count": len(info.get("sensitive_permissions", []) or []),
+                    "version": str(info.get("version", "n/a")),
+                    "first_install_time": str(info.get("first_install_time", "n/a")),
+                    "last_update_time": str(info.get("last_update_time", "n/a")),
+                }
+            )
+        with Path(path).open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "package",
+                    "label",
+                    "type",
+                    "risk",
+                    "risk_score",
+                    "permission_count",
+                    "sensitive_count",
+                    "version",
+                    "first_install_time",
+                    "last_update_time",
+                ],
+            )
+            writer.writeheader()
+            writer.writerows(rows)
+        Toast(self, "Analyse apps exportee (CSV)")
+
     def _on_apps_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
         if current is None:
             return
@@ -2795,6 +3426,10 @@ class MainWindow(QMainWindow):
         if package:
             self._queue_app_icon_load(serial, package)
             self._pump_app_icon_queue(serial)
+            if package not in self._app_analysis:
+                self._queue_app_analysis(serial, package)
+                self._pump_app_analysis_queue(serial)
+            self._show_app_analysis(package)
 
     def _install_apk(self) -> None:
         serial = self._selected_serial()
@@ -3739,6 +4374,26 @@ class MainWindow(QMainWindow):
                 )
             if serial:
                 self._pump_app_icon_queue(serial)
+        elif name == "app_risk":
+            payload = result if isinstance(result, dict) else {}
+            serial = str(payload.get("serial", "")).strip()
+            package = str(payload.get("package", "")).strip()
+            try:
+                generation = int(str(payload.get("generation", "-1")))
+            except ValueError:
+                generation = -1
+            if generation != self._app_analysis_generation:
+                return
+            if serial and package:
+                self._app_analysis_pending.discard(f"{serial}:{package}")
+                payload.pop("serial", None)
+                payload.pop("generation", None)
+                self._app_analysis[package] = payload
+                current = self._selected_app_package()
+                if current == package:
+                    self._show_app_analysis(package)
+                self._apply_apps_filters()
+                self._pump_app_analysis_queue(serial)
         elif name == "worker":
             self._handle_worker_result(result if isinstance(result, dict) else {})
 

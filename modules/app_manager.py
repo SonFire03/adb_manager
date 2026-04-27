@@ -3,10 +3,24 @@ from __future__ import annotations
 import hashlib
 import re
 import zipfile
+from datetime import datetime
 from pathlib import Path
 
 from core.adb_manager import ADBManager
 from core.utils import CommandResult
+
+SENSITIVE_PERMISSIONS = {
+    "android.permission.INTERNET",
+    "android.permission.READ_SMS",
+    "android.permission.SEND_SMS",
+    "android.permission.RECORD_AUDIO",
+    "android.permission.CAMERA",
+    "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.READ_CONTACTS",
+    "android.permission.READ_CALL_LOG",
+    "android.permission.WRITE_SETTINGS",
+    "android.permission.PACKAGE_USAGE_STATS",
+}
 
 
 class AppManagerModule:
@@ -173,3 +187,136 @@ class AppManagerModule:
 
         candidates.sort(key=score, reverse=True)
         return candidates[0]
+
+    def analyze_app(self, serial: str, package_name: str) -> dict[str, object]:
+        data: dict[str, object] = {
+            "package": package_name,
+            "label": package_name.split(".")[-1] if package_name else "app",
+            "type": "unknown",
+            "version": "n/a",
+            "first_install_time": "n/a",
+            "last_update_time": "n/a",
+            "code_path": "n/a",
+            "data_size": "n/a",
+            "cache_size": "n/a",
+            "permissions": [],
+            "sensitive_permissions": [],
+            "permission_count": 0,
+            "risk": "LOW",
+            "risk_score": 0,
+            "analyzed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+        dump = self.adb.run(["shell", "dumpsys", "package", package_name], serial=serial, timeout=20)
+        if not dump.ok or not dump.stdout:
+            data["error"] = dump.stderr or "dumpsys package failed"
+            return data
+
+        text = dump.stdout
+        code_path = self._first_match(text, r"codePath=([^\n\r]+)")
+        version_name = self._first_match(text, r"versionName=([^\n\r]+)")
+        first_install = self._first_match(text, r"firstInstallTime=([^\n\r]+)")
+        last_update = self._first_match(text, r"lastUpdateTime=([^\n\r]+)")
+
+        if version_name:
+            data["version"] = version_name
+        if first_install:
+            data["first_install_time"] = first_install
+        if last_update:
+            data["last_update_time"] = last_update
+        if code_path:
+            data["code_path"] = code_path
+
+        app_type = self._infer_app_type(text, code_path)
+        data["type"] = app_type
+
+        permissions = self._extract_permissions(text)
+        sensitive = sorted([p for p in permissions if p in SENSITIVE_PERMISSIONS])
+        data["permissions"] = sorted(permissions)
+        data["sensitive_permissions"] = sensitive
+        data["permission_count"] = len(permissions)
+
+        risk, risk_score = self.compute_risk_level(permissions=permissions, app_type=app_type, code_path=code_path)
+        data["risk"] = risk
+        data["risk_score"] = risk_score
+
+        # Best effort: sizes may be unavailable without elevated permissions.
+        size_data = self.adb.run(["shell", "du", "-sk", f"/data/user/0/{package_name}"], serial=serial, timeout=8)
+        if size_data.ok and size_data.stdout:
+            kb = self._parse_du_kb(size_data.stdout)
+            if kb > 0:
+                data["data_size"] = self._fmt_bytes(kb * 1024)
+        size_cache = self.adb.run(["shell", "du", "-sk", f"/data/user/0/{package_name}/cache"], serial=serial, timeout=8)
+        if size_cache.ok and size_cache.stdout:
+            kb = self._parse_du_kb(size_cache.stdout)
+            if kb >= 0:
+                data["cache_size"] = self._fmt_bytes(kb * 1024)
+
+        return data
+
+    def compute_risk_level(self, permissions: list[str], app_type: str, code_path: str) -> tuple[str, int]:
+        sensitive_count = sum(1 for p in permissions if p in SENSITIVE_PERMISSIONS)
+        score = sensitive_count * 3
+
+        total = len(permissions)
+        if total >= 25:
+            score += 3
+        elif total >= 15:
+            score += 2
+        elif total >= 8:
+            score += 1
+
+        if app_type == "system":
+            if code_path and not code_path.startswith("/system/"):
+                # System package outside /system often means privileged vendor/update context.
+                score += 2
+            else:
+                score += 1
+
+        if score >= 8:
+            return ("HIGH", score)
+        if score >= 4:
+            return ("MEDIUM", score)
+        return ("LOW", score)
+
+    def _first_match(self, text: str, pattern: str) -> str:
+        m = re.search(pattern, text)
+        return m.group(1).strip() if m else ""
+
+    def _infer_app_type(self, dump: str, code_path: str) -> str:
+        low = dump.lower()
+        path = (code_path or "").lower()
+        if "pkgflags=[" in low and (" system " in low or " privileged " in low):
+            return "system"
+        if path.startswith("/system/") or path.startswith("/product/") or path.startswith("/vendor/"):
+            return "system"
+        return "user"
+
+    def _extract_permissions(self, dump: str) -> list[str]:
+        found: set[str] = set()
+        for line in dump.splitlines():
+            text = line.strip()
+            for perm in re.findall(r"android\\.permission\\.[A-Z0-9_]+", text):
+                found.add(perm)
+        return sorted(found)
+
+    def _parse_du_kb(self, text: str) -> int:
+        if not text:
+            return 0
+        line = text.splitlines()[0].strip()
+        parts = re.split(r"\\s+", line)
+        if not parts:
+            return 0
+        try:
+            return int(parts[0])
+        except ValueError:
+            return 0
+
+    def _fmt_bytes(self, value: int) -> str:
+        units = ["B", "KB", "MB", "GB", "TB"]
+        v = float(max(0, value))
+        for unit in units:
+            if v < 1024 or unit == units[-1]:
+                return f"{v:.1f} {unit}" if unit != "B" else f"{int(v)} {unit}"
+            v /= 1024
+        return f"{int(value)} B"
