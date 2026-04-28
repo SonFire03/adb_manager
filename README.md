@@ -4,7 +4,7 @@
 [![Tests](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml/badge.svg?branch=main&label=tests)](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/SonFire03/adb_manager?display_name=tag)](https://github.com/SonFire03/adb_manager/releases)
 
-> Current focus: **v2.2 Operations Update** (data transfer center + functional device health checks).
+> Current focus: **v2.3 Operations Maturity Update** (transfer presets, fleet health overview, health timeline chart/filters).
 
 Console desktop Android (PySide6) pour administration, debugging et automatisation locale via ADB.
 
@@ -29,6 +29,7 @@ ADB Manager Pro vise un usage **ops/dev quotidien**: multi-device USB/Wi-Fi, dia
 - **Data Transfer Center**:
   - device -> host / host -> device,
   - presets (`Photos & Videos`, `Documents`, `Downloads`, `DCIM`, `Screenshots`, `Custom folders`),
+  - saved custom transfer presets (save/load/delete),
   - transfer queue, per-task status, progress, dry-run preview,
   - JSON/HTML transfer report export,
   - integration with audit trail.
@@ -56,7 +57,11 @@ ADB Manager Pro vise un usage **ops/dev quotidien**: multi-device USB/Wi-Fi, dia
   - score global (`Healthy`, `Needs Attention`, `Degraded`, `Critical`),
   - findings structurés (severity, status, evidence, remediation),
   - export JSON/HTML,
-  - health timeline par appareil (historique des scores + export CSV).
+  - health timeline par appareil (historique des scores + export CSV),
+  - mini chart intégré pour visualiser la tendance de score,
+  - filtres timeline (device + date range),
+  - fleet health overview (dernier score/statut/check par appareil),
+  - run health checks multi-appareils (run all devices).
 
 ## Architecture (rapide)
 
@@ -98,7 +103,7 @@ ADB Manager Pro est un outil d’administration locale et de debugging.
 - Les `Device Health Checks` sont des **indicateurs techniques fonctionnels** basés sur ADB/dumpsys/logcat.
   Ce n'est pas un diagnostic matériel certifié constructeur.
 
-## Screenshots (v2)
+## Screenshots (v2/v2.3)
 
 Interface principale:
 
