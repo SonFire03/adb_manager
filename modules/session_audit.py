@@ -283,6 +283,37 @@ class SessionAuditModule:
             "by_type": by_type,
         }
 
+    def list_health_timeline(self, device_serial: str | None = None, limit: int = 300) -> list[dict[str, Any]]:
+        events = self.list_events(
+            device_serial=device_serial or None,
+            event_type="system",
+            limit=max(1, limit * 4),
+        )
+        rows: list[dict[str, Any]] = []
+        for event in events:
+            if str(event.get("action", "")) != "device_health_checks":
+                continue
+            payload = event.get("payload", {})
+            payload = payload if isinstance(payload, dict) else {}
+            score_raw = payload.get("score", "")
+            try:
+                score = int(score_raw)
+            except Exception:  # noqa: BLE001
+                score = -1
+            rows.append(
+                {
+                    "timestamp": str(event.get("ts", "")),
+                    "device_serial": str(event.get("device_serial", "")),
+                    "score": score,
+                    "status": str(payload.get("status", "")),
+                    "summary": str(event.get("message", "")),
+                    "payload": payload,
+                }
+            )
+            if len(rows) >= limit:
+                break
+        return rows
+
     def _iso_now(self) -> str:
         return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 

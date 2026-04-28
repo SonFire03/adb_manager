@@ -51,6 +51,34 @@ class SessionAuditTests(unittest.TestCase):
             audit.export_session_html(sid, out_html)
             self.assertTrue(out_html.exists())
 
+    def test_health_timeline_extracts_health_events(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "audit.db"
+            audit = SessionAuditModule(db)
+            sid = "s-health"
+            audit.start_session(sid)
+            audit.log_event(
+                sid,
+                event_type="system",
+                action="device_health_checks",
+                status="ok",
+                device_serial="ABC",
+                message="Healthy (92/100)",
+                payload={"score": 92, "status": "Healthy"},
+            )
+            audit.log_event(
+                sid,
+                event_type="system",
+                action="manual_refresh",
+                status="ok",
+                device_serial="ABC",
+                message="refresh",
+            )
+            rows = audit.list_health_timeline(device_serial="ABC", limit=20)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["score"], 92)
+            self.assertEqual(rows[0]["status"], "Healthy")
+
 
 class _StubADB:
     def __init__(self) -> None:

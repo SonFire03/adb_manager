@@ -173,6 +173,7 @@ class MainWindow(QMainWindow):
         self._transfer_reports: list[dict[str, Any]] = []
         self._transfer_running = False
         self._last_device_health_report: dict[str, Any] = {}
+        self._health_history_rows: list[dict[str, Any]] = []
 
         self.setWindowTitle("ADB Manager Pro")
         self.resize(1440, 920)
@@ -371,6 +372,7 @@ class MainWindow(QMainWindow):
             self._autoload_profile_for_device(serial)
         self._refresh_device_inspector()
         self._run_health_check()
+        self._refresh_health_timeline()
 
     def _build_dashboard_tab(self) -> None:
         tab = QWidget()
@@ -1805,13 +1807,19 @@ class MainWindow(QMainWindow):
         self.health_refresh_btn2.setObjectName("successBtn")
         self.health_export_json_btn2 = QPushButton("Export Health JSON")
         self.health_export_html_btn2 = QPushButton("Export Health HTML")
+        self.health_history_refresh_btn = QPushButton("Refresh Timeline")
+        self.health_history_export_btn = QPushButton("Export Timeline CSV")
         self.health_export_json_btn2.setObjectName("ghostBtn")
         self.health_export_html_btn2.setObjectName("ghostBtn")
+        self.health_history_refresh_btn.setObjectName("ghostBtn")
+        self.health_history_export_btn.setObjectName("ghostBtn")
         self.health_score_badge = QLabel("Score: n/a")
         self.health_score_badge.setObjectName("deviceBadge")
         top.addWidget(self.health_refresh_btn2)
         top.addWidget(self.health_export_json_btn2)
         top.addWidget(self.health_export_html_btn2)
+        top.addWidget(self.health_history_refresh_btn)
+        top.addWidget(self.health_history_export_btn)
         top.addStretch()
         top.addWidget(self.health_score_badge)
         layout.addLayout(top)
@@ -1848,11 +1856,30 @@ class MainWindow(QMainWindow):
         split.setStretchFactor(1, 3)
         layout.addWidget(split, 1)
 
+        history_box = QGroupBox("Health Timeline")
+        history_box.setObjectName("panelCard")
+        history_l = QVBoxLayout(history_box)
+        history_l.setContentsMargins(10, 10, 10, 10)
+        history_l.setSpacing(6)
+        self.health_timeline_summary = QLabel("Aucune donnee timeline")
+        self.health_timeline_summary.setObjectName("metricLabel")
+        history_l.addWidget(self.health_timeline_summary)
+        self.health_timeline_table = QTableWidget(0, 5)
+        self.health_timeline_table.setHorizontalHeaderLabels(["Timestamp", "Device", "Score", "Status", "Summary"])
+        self.health_timeline_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.health_timeline_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.health_timeline_table.setMaximumHeight(220)
+        history_l.addWidget(self.health_timeline_table)
+        layout.addWidget(history_box)
+
         self.tabs.addTab(tab, "Health")
         self.health_refresh_btn2.clicked.connect(self._run_device_health_checks)
         self.health_export_json_btn2.clicked.connect(self._export_device_health_json)
         self.health_export_html_btn2.clicked.connect(self._export_device_health_html)
         self.health_findings_table.itemSelectionChanged.connect(self._on_health_finding_selected)
+        self.health_history_refresh_btn.clicked.connect(self._refresh_health_timeline)
+        self.health_history_export_btn.clicked.connect(self._export_health_timeline_csv)
+        self._refresh_health_timeline()
 
     def _on_transfer_preset_changed(self, preset: str) -> None:
         direction = self.transfer_direction.currentText().strip()
@@ -2126,6 +2153,85 @@ class MainWindow(QMainWindow):
             self.health_findings_table.setItem(row, 3, status_item)
             self.health_findings_table.setItem(row, 4, QTableWidgetItem(str(f.get("evidence", ""))))
             self.health_findings_table.setItem(row, 5, QTableWidgetItem(str(f.get("remediation", ""))))
+        self._refresh_health_timeline()
+
+    def _health_trend_label(self, scores: list[int]) -> str:
+        if len(scores) < 2:
+            return "stable"
+        recent = scores[:5]
+        older = scores[-5:]
+        r_avg = sum(recent) / len(recent)
+        o_avg = sum(older) / len(older)
+        delta = r_avg - o_avg
+        if delta >= 5:
+            return f"improving (+{delta:.1f})"
+        if delta <= -5:
+            return f"declining ({delta:.1f})"
+        return f"stable ({delta:+.1f})"
+
+    def _refresh_health_timeline(self) -> None:
+        if not hasattr(self, "health_timeline_table"):
+            return
+        serial = self._selected_serial() or ""
+        timeline = self.audit_module.list_health_timeline(device_serial=serial or None, limit=250)
+        rows: list[dict[str, Any]] = []
+        for item in timeline:
+            rows.append(
+                {
+                    "timestamp": str(item.get("timestamp", "")),
+                    "serial": str(item.get("device_serial", "")),
+                    "score": int(item.get("score", -1)) if str(item.get("score", "-1")).lstrip("-").isdigit() else -1,
+                    "status": str(item.get("status", "")),
+                    "summary": str(item.get("summary", "")),
+                }
+            )
+        self._health_history_rows = rows
+        self.health_timeline_table.setRowCount(len(rows))
+        scores: list[int] = []
+        for r, row in enumerate(rows):
+            self.health_timeline_table.setItem(r, 0, QTableWidgetItem(row["timestamp"]))
+            self.health_timeline_table.setItem(r, 1, QTableWidgetItem(row["serial"]))
+            score_item = QTableWidgetItem(str(row["score"]) if row["score"] >= 0 else "n/a")
+            if row["score"] >= 0:
+                scores.append(int(row["score"]))
+                if row["score"] < 40:
+                    score_item.setForeground(QColor("#fca5a5"))
+                elif row["score"] < 70:
+                    score_item.setForeground(QColor("#fcd34d"))
+                else:
+                    score_item.setForeground(QColor("#86efac"))
+            self.health_timeline_table.setItem(r, 2, score_item)
+            self.health_timeline_table.setItem(r, 3, QTableWidgetItem(row["status"]))
+            self.health_timeline_table.setItem(r, 4, QTableWidgetItem(row["summary"]))
+        if rows:
+            latest = rows[0]
+            trend = self._health_trend_label(scores)
+            self.health_timeline_summary.setText(
+                f"Timeline: {len(rows)} checks | latest={latest['score'] if latest['score'] >= 0 else 'n/a'}/100 ({latest['status']}) | trend={trend}"
+            )
+        else:
+            self.health_timeline_summary.setText("Aucun health check historise pour ce filtre.")
+
+    def _export_health_timeline_csv(self) -> None:
+        if not self._health_history_rows:
+            Toast(self, "Aucune timeline a exporter")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Health Timeline CSV",
+            str(self.base_dir / "reports" / f"health_timeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"),
+            "CSV (*.csv)",
+        )
+        if not path:
+            return
+        out = Path(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["timestamp", "device_serial", "score", "status", "summary"])
+            for row in self._health_history_rows:
+                writer.writerow([row["timestamp"], row["serial"], row["score"], row["status"], row["summary"]])
+        Toast(self, "Timeline exportee (CSV)")
 
     def _on_health_finding_selected(self) -> None:
         if not self._last_device_health_report:

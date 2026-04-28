@@ -12,6 +12,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - UI tabs `Transfers` and `Health` with exports and detailed findings rendering.
 - Audit trail integration for transfer executions and device health runs.
 - Unit tests for transfer and device health modules (`tests/test_transfer_health_modules.py`).
+- Health timeline in UI (historical device health scores, trend, CSV export) powered by audit trail.
+- `SessionAuditModule.list_health_timeline()` helper API + test coverage.
 
 ### Changed
 - README updated to v2.2 positioning and functional health-check framing.

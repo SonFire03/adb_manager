@@ -55,7 +55,8 @@ ADB Manager Pro vise un usage **ops/dev quotidien**: multi-device USB/Wi-Fi, dia
   - battery / storage / CPU-memory / thermal / connectivity / ADB stability / app stability hints,
   - score global (`Healthy`, `Needs Attention`, `Degraded`, `Critical`),
   - findings structurés (severity, status, evidence, remediation),
-  - export JSON/HTML.
+  - export JSON/HTML,
+  - health timeline par appareil (historique des scores + export CSV).
 
 ## Architecture (rapide)
 
