@@ -17,8 +17,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEasingCurve, QObject, QProcess, QPropertyAnimation, QSize, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QColor, QIcon, QImage, QKeySequence, QPixmap, QShortcut, QTextCursor, QTextDocument
+from PySide6.QtCore import QEasingCurve, QObject, QPointF, QProcess, QPropertyAnimation, QSize, Qt, QTimer, QUrl, Signal, Slot
+from PySide6.QtGui import QColor, QIcon, QImage, QKeySequence, QPainter, QPen, QPixmap, QPolygonF, QShortcut, QTextCursor, QTextDocument
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtPrintSupport import QPrinter
@@ -82,6 +82,46 @@ class UiBridge(QObject):
     device_list_updated = Signal(object)
     command_done = Signal(object)
     status_text = Signal(str)
+
+
+class HealthTimelineChart(QWidget):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._scores: list[int] = []
+        self.setMinimumHeight(120)
+        self.setMaximumHeight(170)
+
+    def set_scores(self, scores: list[int]) -> None:
+        self._scores = [max(0, min(100, int(s))) for s in scores if isinstance(s, int)]
+        self.update()
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        rect = self.rect().adjusted(8, 8, -8, -8)
+        p.fillRect(self.rect(), QColor("#071023"))
+        if rect.width() <= 10 or rect.height() <= 10:
+            return
+        p.setPen(QPen(QColor("#1f2a44"), 1))
+        for y_pct in (0, 25, 50, 75, 100):
+            y = rect.bottom() - (rect.height() * y_pct / 100.0)
+            p.drawLine(rect.left(), int(y), rect.right(), int(y))
+        if len(self._scores) < 2:
+            p.setPen(QPen(QColor("#6b7280"), 1))
+            p.drawText(rect, Qt.AlignmentFlag.AlignCenter, "Pas assez de donnees pour la courbe")
+            return
+        step = rect.width() / max(1, len(self._scores) - 1)
+        pts = []
+        for i, score in enumerate(reversed(self._scores)):
+            x = rect.left() + i * step
+            y = rect.bottom() - (rect.height() * score / 100.0)
+            pts.append((x, y, score))
+        poly = QPolygonF([QPointF(x, y) for x, y, _ in pts])
+        p.setPen(QPen(QColor("#22c55e"), 2))
+        p.drawPolyline(poly)
+        p.setPen(QPen(QColor("#60a5fa"), 1))
+        for x, y, _score in pts:
+            p.drawEllipse(QPointF(x, y), 2.5, 2.5)
 
 
 class MainWindow(QMainWindow):
@@ -1864,6 +1904,8 @@ class MainWindow(QMainWindow):
         self.health_timeline_summary = QLabel("Aucune donnee timeline")
         self.health_timeline_summary.setObjectName("metricLabel")
         history_l.addWidget(self.health_timeline_summary)
+        self.health_timeline_chart = HealthTimelineChart()
+        history_l.addWidget(self.health_timeline_chart)
         self.health_timeline_table = QTableWidget(0, 5)
         self.health_timeline_table.setHorizontalHeaderLabels(["Timestamp", "Device", "Score", "Status", "Summary"])
         self.health_timeline_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -2209,8 +2251,10 @@ class MainWindow(QMainWindow):
             self.health_timeline_summary.setText(
                 f"Timeline: {len(rows)} checks | latest={latest['score'] if latest['score'] >= 0 else 'n/a'}/100 ({latest['status']}) | trend={trend}"
             )
+            self.health_timeline_chart.set_scores(scores)
         else:
             self.health_timeline_summary.setText("Aucun health check historise pour ce filtre.")
+            self.health_timeline_chart.set_scores([])
 
     def _export_health_timeline_csv(self) -> None:
         if not self._health_history_rows:
