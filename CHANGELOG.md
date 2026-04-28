@@ -16,6 +16,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 - README updated for v2.4 guided ops feature set.
+- README rewritten for v2.5-quality product narrative (quick workflows, signature features, reduced visual density).
+- Added `docs/quick-demo.md` for a fast product walkthrough.
+- Release notes template refined for cleaner release readiness.
 
 ## [2.3.0] - 2026-04-28
 
