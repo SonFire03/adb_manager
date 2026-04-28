@@ -71,9 +71,13 @@ from modules.device_inspector import DeviceInspectorModule
 from modules.device_profiles import DeviceProfile, DeviceProfilesModule
 from modules.file_manager import FileManagerModule
 from modules.health_check import HealthCheckModule
+from modules.notification_center import NotificationCenterModule
 from modules.session_audit import SessionAuditModule
+from modules.smart_sync import SmartSyncModule
 from modules.snapshot_compare import SnapshotCompareModule
+from modules.support_bundle import SupportBundleModule
 from modules.system_info import SystemInfoModule
+from modules.workflow_center import WorkflowCenterModule
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +141,7 @@ class MainWindow(QMainWindow):
         self.app_module = AppManagerModule(self.adb)
         self.system_module = SystemInfoModule(self.adb)
         self.transfer_module = DataTransferModule(self.adb)
+        self.sync_module = SmartSyncModule(self.adb)
         self.device_health_module = DeviceHealthModule(self.adb)
         self.inspector_module = DeviceInspectorModule(self.adb)
         self.health_module = HealthCheckModule(self.adb)
@@ -144,6 +149,9 @@ class MainWindow(QMainWindow):
         self.backup_module = BackupRestoreModule(self.adb, base_dir / "backups")
         self.profiles_module = DeviceProfilesModule(config)
         self.audit_module = SessionAuditModule(base_dir / "config" / "session_audit.db")
+        self.notifications_module = NotificationCenterModule(base_dir / "config" / "notifications.db")
+        self.workflow_module = WorkflowCenterModule()
+        self.bundle_module = SupportBundleModule(base_dir)
         self.snapshot_module = SnapshotCompareModule(
             self.adb,
             self.app_module,
@@ -214,6 +222,8 @@ class MainWindow(QMainWindow):
         self._transfer_running = False
         self._last_device_health_report: dict[str, Any] = {}
         self._health_history_rows: list[dict[str, Any]] = []
+        self._sync_preview_data: dict[str, Any] = {}
+        self._workflow_run_history: list[dict[str, Any]] = []
 
         self.setWindowTitle("ADB Manager Pro")
         self.resize(1440, 920)
@@ -259,9 +269,12 @@ class MainWindow(QMainWindow):
         header_top.addStretch()
         self.device_badge = QLabel("Aucun appareil")
         self.device_badge.setObjectName("deviceBadge")
+        self.notify_badge = QLabel("Notif: 0")
+        self.notify_badge.setObjectName("deviceBadge")
         self.clock_label = QLabel("--:--:--")
         self.clock_label.setObjectName("clockLabel")
         header_top.addWidget(self.device_badge)
+        header_top.addWidget(self.notify_badge)
         header_top.addWidget(self.clock_label)
         header_layout.addLayout(header_top)
 
@@ -371,6 +384,8 @@ class MainWindow(QMainWindow):
         self._build_captures_tab()
         self._build_transfer_tab()
         self._build_device_health_tab()
+        self._build_workflows_tab()
+        self._build_notifications_tab()
         self._build_reports_tab()
         self._set_tab_icons()
         self._build_sidebar_nav()
@@ -405,6 +420,7 @@ class MainWindow(QMainWindow):
         self.clock_timer.start(1000)
         self._tick_clock()
         self._update_responsive_layout()
+        self._update_notifications_badge()
 
     def _on_active_device_changed(self, _index: int) -> None:
         serial = self._selected_serial() or ""
@@ -1805,6 +1821,12 @@ class MainWindow(QMainWindow):
 
         action_row = QHBoxLayout()
         self.transfer_dry_run = QCheckBox("Dry-run (preview uniquement)")
+        self.sync_mode_box = QComboBox()
+        self.sync_mode_box.addItems(["copy_missing_only", "update_newer_only", "skip_duplicates", "mirror_selected"])
+        self.sync_preview_btn = QPushButton("Preview Sync")
+        self.sync_run_btn = QPushButton("Run Sync")
+        self.sync_preview_btn.setObjectName("ghostBtn")
+        self.sync_run_btn.setObjectName("successBtn")
         self.transfer_start_btn = QPushButton("Executer queue")
         self.transfer_clear_btn = QPushButton("Vider queue")
         self.transfer_export_btn = QPushButton("Export rapport transfert")
@@ -1812,6 +1834,9 @@ class MainWindow(QMainWindow):
         self.transfer_clear_btn.setObjectName("dangerBtn")
         self.transfer_export_btn.setObjectName("ghostBtn")
         action_row.addWidget(self.transfer_dry_run)
+        action_row.addWidget(self.sync_mode_box)
+        action_row.addWidget(self.sync_preview_btn)
+        action_row.addWidget(self.sync_run_btn)
         action_row.addStretch()
         action_row.addWidget(self.transfer_start_btn)
         action_row.addWidget(self.transfer_clear_btn)
@@ -1823,6 +1848,12 @@ class MainWindow(QMainWindow):
         self.transfer_queue_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.transfer_queue_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self.transfer_queue_table, 1)
+        self.sync_preview_table = QTableWidget(0, 5)
+        self.sync_preview_table.setHorizontalHeaderLabels(["RelPath", "Decision", "Reason", "SrcSize", "DstSize"])
+        self.sync_preview_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.sync_preview_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.sync_preview_table.setMaximumHeight(180)
+        layout.addWidget(self.sync_preview_table)
 
         self.transfer_progress = QProgressBar()
         self.transfer_progress.setMinimum(0)
@@ -1844,11 +1875,79 @@ class MainWindow(QMainWindow):
         self.transfer_clear_btn.clicked.connect(self._clear_transfer_queue)
         self.transfer_start_btn.clicked.connect(self._run_transfer_queue)
         self.transfer_export_btn.clicked.connect(self._export_transfer_report)
+        self.sync_preview_btn.clicked.connect(self._preview_smart_sync)
+        self.sync_run_btn.clicked.connect(self._run_smart_sync)
         self.transfer_save_preset_btn.clicked.connect(self._save_transfer_preset)
         self.transfer_delete_preset_btn.clicked.connect(self._delete_transfer_preset)
         self.transfer_saved_presets.currentIndexChanged.connect(self._load_selected_transfer_preset)
         self._refresh_transfer_saved_presets()
         self._on_transfer_preset_changed(self.transfer_preset.currentText())
+
+    def _preview_smart_sync(self) -> None:
+        serial = self._selected_serial()
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        direction_ui = self.transfer_direction.currentText().strip()
+        direction = "device_to_host" if direction_ui == "device -> host" else "host_to_device"
+        src = self.transfer_source.text().strip()
+        dst = self.transfer_destination.text().strip()
+        mode = self.sync_mode_box.currentText().strip()
+        result = self.sync_module.preview(serial=serial, direction=direction, source=src, destination=dst, mode=mode)
+        self._sync_preview_data = result
+        if not result.get("ok"):
+            self.transfer_log.append(f"[sync-preview] ERROR: {result.get('error', '')}")
+            Toast(self, "Echec preview sync")
+            return
+        items = result.get("items", [])
+        items = items if isinstance(items, list) else []
+        self.sync_preview_table.setRowCount(min(len(items), 400))
+        for i, raw in enumerate(items[:400]):
+            row = raw if isinstance(raw, dict) else {}
+            self.sync_preview_table.setItem(i, 0, QTableWidgetItem(str(row.get("rel_path", ""))))
+            decision = str(row.get("decision", ""))
+            decision_item = QTableWidgetItem(decision)
+            if decision in {"copy", "update"}:
+                decision_item.setForeground(QColor("#86efac"))
+            elif decision in {"conflict"}:
+                decision_item.setForeground(QColor("#fca5a5"))
+            else:
+                decision_item.setForeground(QColor("#93c5fd"))
+            self.sync_preview_table.setItem(i, 1, decision_item)
+            self.sync_preview_table.setItem(i, 2, QTableWidgetItem(str(row.get("reason", ""))))
+            self.sync_preview_table.setItem(i, 3, QTableWidgetItem(str(row.get("src_size", ""))))
+            self.sync_preview_table.setItem(i, 4, QTableWidgetItem(str(row.get("dst_size", ""))))
+        summary = result.get("summary", {})
+        self.transfer_log.append(f"[sync-preview] {json.dumps(summary, ensure_ascii=False)}")
+
+    def _run_smart_sync(self) -> None:
+        serial = self._selected_serial()
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        preview = self._sync_preview_data
+        if not preview.get("ok"):
+            self._preview_smart_sync()
+            preview = self._sync_preview_data
+        if not preview.get("ok"):
+            return
+        result = self.sync_module.execute(serial=serial, preview=preview)
+        self.transfer_log.append(f"[sync-run] executed={result.get('executed', 0)} errors={len(result.get('errors', []))}")
+        for err in result.get("errors", [])[:30]:
+            self.transfer_log.append(f"[sync-run] ERR {err}")
+        status = "ok" if result.get("ok") else "warning"
+        self._audit_event(
+            event_type="file",
+            action="smart_sync",
+            status=status,
+            message=f"Smart sync executed={result.get('executed', 0)} errors={len(result.get('errors', []))}",
+            payload={"preview_summary": preview.get("summary", {}), "result": result},
+            serial=serial,
+        )
+        if result.get("ok"):
+            Toast(self, "Smart sync termine")
+        else:
+            Toast(self, "Smart sync termine avec erreurs")
 
     def _refresh_transfer_saved_presets(self) -> None:
         if not hasattr(self, "transfer_saved_presets"):
@@ -2034,6 +2133,359 @@ class MainWindow(QMainWindow):
         self.health_timeline_date_from.textChanged.connect(self._refresh_health_timeline)
         self.health_timeline_date_to.textChanged.connect(self._refresh_health_timeline)
         self._refresh_health_timeline()
+
+    def _build_workflows_tab(self) -> None:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        top = QHBoxLayout()
+        self.workflow_run_btn = QPushButton("Run Workflow")
+        self.workflow_run_btn.setObjectName("successBtn")
+        self.workflow_bundle_btn = QPushButton("Export Support Bundle")
+        self.workflow_bundle_btn.setObjectName("ghostBtn")
+        top.addWidget(self.workflow_run_btn)
+        top.addWidget(self.workflow_bundle_btn)
+        top.addStretch()
+        layout.addLayout(top)
+
+        split = QSplitter(Qt.Orientation.Horizontal)
+        split.setChildrenCollapsible(False)
+        left = QWidget()
+        right = QWidget()
+        ll = QVBoxLayout(left)
+        rl = QVBoxLayout(right)
+        ll.setContentsMargins(0, 0, 0, 0)
+        rl.setContentsMargins(0, 0, 0, 0)
+        self.workflow_list = QTableWidget(0, 4)
+        self.workflow_list.setHorizontalHeaderLabels(["Workflow", "Impact", "Last Status", "Last Run"])
+        self.workflow_list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.workflow_list.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        ll.addWidget(self.workflow_list)
+
+        self.workflow_desc = QTextEdit()
+        self.workflow_desc.setReadOnly(True)
+        self.workflow_desc.setPlaceholderText("Description workflow et etapes...")
+        rl.addWidget(self.workflow_desc)
+        self.workflow_log = QTextEdit()
+        self.workflow_log.setReadOnly(True)
+        self.workflow_log.setPlaceholderText("Historique executions workflow...")
+        self.workflow_log.setMaximumHeight(220)
+        rl.addWidget(self.workflow_log)
+        split.addWidget(left)
+        split.addWidget(right)
+        split.setStretchFactor(0, 2)
+        split.setStretchFactor(1, 3)
+        layout.addWidget(split, 1)
+        self.tabs.addTab(tab, "Workflows")
+
+        self.workflow_list.itemSelectionChanged.connect(self._on_workflow_selected)
+        self.workflow_run_btn.clicked.connect(self._run_selected_workflow)
+        self.workflow_bundle_btn.clicked.connect(self._export_support_bundle_dialog)
+        self._refresh_workflows_table()
+
+    def _build_notifications_tab(self) -> None:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        top = QHBoxLayout()
+        self.notify_severity_filter = QComboBox()
+        self.notify_severity_filter.addItems(["all", "info", "warning", "error"])
+        self.notify_device_filter = QComboBox()
+        self.notify_device_filter.addItem("all", "")
+        self.notify_unread_only = QCheckBox("Unread only")
+        self.notify_mark_read_btn = QPushButton("Mark read")
+        self.notify_mark_all_btn = QPushButton("Mark all read")
+        self.notify_delete_btn = QPushButton("Delete")
+        self.notify_clear_btn = QPushButton("Clear")
+        self.notify_mark_read_btn.setObjectName("ghostBtn")
+        self.notify_mark_all_btn.setObjectName("ghostBtn")
+        self.notify_delete_btn.setObjectName("dangerBtn")
+        self.notify_clear_btn.setObjectName("dangerBtn")
+        top.addWidget(self.notify_severity_filter)
+        top.addWidget(self.notify_device_filter)
+        top.addWidget(self.notify_unread_only)
+        top.addStretch()
+        top.addWidget(self.notify_mark_read_btn)
+        top.addWidget(self.notify_mark_all_btn)
+        top.addWidget(self.notify_delete_btn)
+        top.addWidget(self.notify_clear_btn)
+        layout.addLayout(top)
+        self.notify_table = QTableWidget(0, 6)
+        self.notify_table.setHorizontalHeaderLabels(["Time", "Severity", "Category", "Device", "Title", "Message"])
+        self.notify_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.notify_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.notify_table, 1)
+        self.notify_details = QTextEdit()
+        self.notify_details.setReadOnly(True)
+        self.notify_details.setMaximumHeight(160)
+        layout.addWidget(self.notify_details)
+        self.tabs.addTab(tab, "Notifications")
+
+        self.notify_severity_filter.currentIndexChanged.connect(self._refresh_notifications_view)
+        self.notify_device_filter.currentIndexChanged.connect(self._refresh_notifications_view)
+        self.notify_unread_only.stateChanged.connect(self._refresh_notifications_view)
+        self.notify_table.itemSelectionChanged.connect(self._on_notification_selected)
+        self.notify_mark_read_btn.clicked.connect(self._mark_selected_notification_read)
+        self.notify_mark_all_btn.clicked.connect(self._mark_all_notifications_read)
+        self.notify_delete_btn.clicked.connect(self._delete_selected_notification)
+        self.notify_clear_btn.clicked.connect(self._clear_notifications)
+        self._refresh_notifications_view()
+
+    def _refresh_workflows_table(self) -> None:
+        workflows = self.workflow_module.as_dicts()
+        self.workflow_list.setRowCount(len(workflows))
+        for row, wf in enumerate(workflows):
+            wid = str(wf.get("workflow_id", ""))
+            self.workflow_list.setItem(row, 0, QTableWidgetItem(str(wf.get("title", ""))))
+            self.workflow_list.setItem(row, 1, QTableWidgetItem(str(wf.get("impact", ""))))
+            history = [h for h in self._workflow_run_history if str(h.get("workflow_id", "")) == wid]
+            last = history[-1] if history else {}
+            self.workflow_list.setItem(row, 2, QTableWidgetItem(str(last.get("status", "never"))))
+            self.workflow_list.setItem(row, 3, QTableWidgetItem(str(last.get("finished_at", ""))))
+            self.workflow_list.item(row, 0).setData(Qt.ItemDataRole.UserRole, wid)
+        if workflows and self.workflow_list.currentRow() < 0:
+            self.workflow_list.selectRow(0)
+
+    def _selected_workflow(self) -> dict[str, Any] | None:
+        row = self.workflow_list.currentRow() if hasattr(self, "workflow_list") else -1
+        if row < 0:
+            return None
+        item = self.workflow_list.item(row, 0)
+        if item is None:
+            return None
+        wid = str(item.data(Qt.ItemDataRole.UserRole) or "")
+        for wf in self.workflow_module.as_dicts():
+            if str(wf.get("workflow_id", "")) == wid:
+                return wf
+        return None
+
+    def _on_workflow_selected(self) -> None:
+        wf = self._selected_workflow()
+        if not wf:
+            return
+        lines = [str(wf.get("description", "")), "", "Etapes:"]
+        for s in wf.get("steps", []):
+            step = s if isinstance(s, dict) else {}
+            lines.append(f"- {step.get('title', '')} ({step.get('action', '')})")
+        self.workflow_desc.setPlainText("\n".join(lines))
+
+    def _run_selected_workflow(self) -> None:
+        wf = self._selected_workflow()
+        serial = self._selected_serial()
+        if not wf or not serial:
+            Toast(self, "Workflow ou appareil manquant")
+            return
+        self._run_in_worker(
+            "workflow_execute",
+            lambda: self._execute_workflow_sync(wf, serial),
+            {"serial": serial, "workflow_id": str(wf.get("workflow_id", ""))},
+        )
+
+    def _execute_workflow_sync(self, workflow: dict[str, Any], serial: str) -> dict[str, Any]:
+        steps = workflow.get("steps", [])
+        steps = steps if isinstance(steps, list) else []
+        logs: list[str] = []
+        errors: list[str] = []
+        for raw in steps:
+            step = raw if isinstance(raw, dict) else {}
+            action = str(step.get("action", ""))
+            title = str(step.get("title", action))
+            logs.append(f"START {title}")
+            try:
+                if action == "refresh_devices":
+                    self.device_manager.poll_async()
+                elif action == "device_inspector":
+                    self._device_inspector_data = self.inspector_module.inspect(serial, self._current_device_info())
+                elif action == "device_health":
+                    self._last_device_health_report = self.device_health_module.run(serial, self._current_device_info())
+                elif action == "capture_snapshot":
+                    snap = self.snapshot_module.capture_snapshot(serial, self._current_device_info())
+                    self._snapshot_last_captured_file = str(snap.get("file", ""))
+                elif action == "queue_transfer_dcim":
+                    task = self.transfer_module.make_task(
+                        serial=serial,
+                        direction="device_to_host",
+                        source="/sdcard/DCIM",
+                        destination=str(self.base_dir / "transfers" / "dcim"),
+                        preset="DCIM",
+                        dry_run=False,
+                    )
+                    self._transfer_queue.append(
+                        {
+                            "task_id": task.task_id,
+                            "created_at": task.created_at,
+                            "serial": task.serial,
+                            "direction": task.direction,
+                            "source": task.source,
+                            "destination": task.destination,
+                            "preset": task.preset,
+                            "dry_run": task.dry_run,
+                            "status": "queued",
+                        }
+                    )
+                elif action == "queue_transfer_screenshots":
+                    task = self.transfer_module.make_task(
+                        serial=serial,
+                        direction="device_to_host",
+                        source="/sdcard/Pictures/Screenshots",
+                        destination=str(self.base_dir / "transfers" / "screenshots"),
+                        preset="Screenshots",
+                        dry_run=False,
+                    )
+                    self._transfer_queue.append(
+                        {
+                            "task_id": task.task_id,
+                            "created_at": task.created_at,
+                            "serial": task.serial,
+                            "direction": task.direction,
+                            "source": task.source,
+                            "destination": task.destination,
+                            "preset": task.preset,
+                            "dry_run": task.dry_run,
+                            "status": "queued",
+                        }
+                    )
+                elif action == "run_transfer_queue":
+                    for item in list(self._transfer_queue):
+                        t = self.transfer_module.make_task(
+                            serial=str(item.get("serial", serial)),
+                            direction=str(item.get("direction", "device_to_host")),
+                            source=str(item.get("source", "")),
+                            destination=str(item.get("destination", "")),
+                            preset=str(item.get("preset", "")),
+                            dry_run=bool(item.get("dry_run", False)),
+                        )
+                        res = self.transfer_module.execute_task(t)
+                        item["status"] = str(res.get("status", "unknown"))
+                        self._transfer_reports.append(res)
+                elif action == "adb_health":
+                    self._health_report = self.health_module.run(self._last_devices, serial)
+                elif action == "load_logcat_recent":
+                    _ = self.adb.run(["logcat", "-d", "-t", "200"], serial=serial, timeout=20)
+                elif action == "refresh_health_timeline":
+                    pass
+                elif action == "export_transfer_report_auto":
+                    pass
+                elif action == "export_health_json_auto":
+                    pass
+                elif action == "support_bundle":
+                    data = self._collect_bundle_data(serial)
+                    include = {
+                        "device_inspector": True,
+                        "device_health": True,
+                        "audit_session": True,
+                        "snapshot_diff": bool(self._snapshot_diff),
+                        "app_risk_summary": True,
+                        "health_timeline": True,
+                        "captures": True,
+                        "logs": False,
+                    }
+                    self.bundle_module.create_bundle(
+                        bundle_name="workflow_bundle",
+                        serial=serial,
+                        include=include,
+                        data=data,
+                        output_dir=self.base_dir / "reports" / "bundles",
+                    )
+                logs.append(f"OK {title}")
+            except Exception as exc:  # noqa: BLE001
+                msg = f"{title}: {exc}"
+                errors.append(msg)
+                logs.append(f"ERR {msg}")
+        return {
+            "workflow_id": str(workflow.get("workflow_id", "")),
+            "title": str(workflow.get("title", "")),
+            "serial": serial,
+            "steps_total": len(steps),
+            "errors": errors,
+            "logs": logs,
+            "status": "success" if not errors else "partial",
+        }
+
+    def _refresh_notifications_view(self) -> None:
+        if not hasattr(self, "notify_table"):
+            return
+        severity = str(self.notify_severity_filter.currentText() or "").strip().lower()
+        severity = "" if severity == "all" else severity
+        serial = str(self.notify_device_filter.currentData() or "").strip()
+        unread = bool(self.notify_unread_only.isChecked())
+        rows = self.notifications_module.list(severity=severity, device_serial=serial, unread_only=unread, limit=800)
+        self.notify_table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            self.notify_table.setItem(r, 0, QTableWidgetItem(str(row.get("created_at", ""))))
+            sev_item = QTableWidgetItem(str(row.get("severity", "")))
+            sev = str(row.get("severity", ""))
+            if sev == "error":
+                sev_item.setForeground(QColor("#fca5a5"))
+            elif sev == "warning":
+                sev_item.setForeground(QColor("#fcd34d"))
+            else:
+                sev_item.setForeground(QColor("#93c5fd"))
+            self.notify_table.setItem(r, 1, sev_item)
+            self.notify_table.setItem(r, 2, QTableWidgetItem(str(row.get("category", ""))))
+            self.notify_table.setItem(r, 3, QTableWidgetItem(str(row.get("device_serial", ""))))
+            self.notify_table.setItem(r, 4, QTableWidgetItem(str(row.get("title", ""))))
+            self.notify_table.setItem(r, 5, QTableWidgetItem(str(row.get("message", ""))))
+            self.notify_table.item(r, 0).setData(Qt.ItemDataRole.UserRole, int(row.get("id", 0)))
+        self._refresh_notification_filters(rows)
+        self._update_notifications_badge()
+
+    def _refresh_notification_filters(self, rows: list[dict[str, Any]]) -> None:
+        current = str(self.notify_device_filter.currentData() or "") if hasattr(self, "notify_device_filter") else ""
+        serials = sorted({str(r.get("device_serial", "")).strip() for r in rows if str(r.get("device_serial", "")).strip()})
+        self.notify_device_filter.blockSignals(True)
+        self.notify_device_filter.clear()
+        self.notify_device_filter.addItem("all", "")
+        for s in serials:
+            self.notify_device_filter.addItem(s, s)
+        if current:
+            idx = self.notify_device_filter.findData(current)
+            if idx >= 0:
+                self.notify_device_filter.setCurrentIndex(idx)
+        self.notify_device_filter.blockSignals(False)
+
+    def _selected_notification_id(self) -> int:
+        row = self.notify_table.currentRow() if hasattr(self, "notify_table") else -1
+        if row < 0:
+            return 0
+        item = self.notify_table.item(row, 0)
+        if item is None:
+            return 0
+        try:
+            return int(item.data(Qt.ItemDataRole.UserRole) or 0)
+        except Exception:  # noqa: BLE001
+            return 0
+
+    def _on_notification_selected(self) -> None:
+        nid = self._selected_notification_id()
+        if not nid:
+            return
+        rows = self.notifications_module.list(limit=1000)
+        row = next((x for x in rows if int(x.get("id", 0)) == nid), None)
+        if not row:
+            return
+        self.notify_details.setPlainText(json.dumps(row, indent=2, ensure_ascii=False))
+
+    def _mark_selected_notification_read(self) -> None:
+        nid = self._selected_notification_id()
+        if not nid:
+            return
+        self.notifications_module.mark_read(nid)
+        self._refresh_notifications_view()
+
+    def _mark_all_notifications_read(self) -> None:
+        self.notifications_module.mark_all_read()
+        self._refresh_notifications_view()
+
+    def _delete_selected_notification(self) -> None:
+        nid = self._selected_notification_id()
+        if not nid:
+            return
+        self.notifications_module.delete(nid)
+        self._refresh_notifications_view()
+
+    def _clear_notifications(self) -> None:
+        self.notifications_module.clear()
+        self._refresh_notifications_view()
 
     def _run_device_health_checks_all(self) -> None:
         if not self._last_devices:
@@ -2285,6 +2737,18 @@ class MainWindow(QMainWindow):
         score = int(report.get("score", 0))
         status = str(report.get("status", "n/a"))
         self.health_score_badge.setText(f"Score: {score}/100 • {status}")
+        serial = str(report.get("serial", self._selected_serial() or ""))
+        if status in {"Degraded", "Critical"}:
+            self.notifications_module.add(
+                severity="warning" if status == "Degraded" else "error",
+                category="health",
+                title="Health score degraded",
+                message=f"{status} ({score}/100)",
+                device_serial=serial,
+                link_type="health",
+                link_value=status,
+            )
+            self._update_notifications_badge()
 
         sections = report.get("sections", {})
         section_lines = [f"Global: {status} ({score}/100)", ""]
@@ -2466,6 +2930,75 @@ class MainWindow(QMainWindow):
             for row in self._health_history_rows:
                 writer.writerow([row["timestamp"], row["serial"], row["score"], row["status"], row["summary"]])
         Toast(self, "Timeline exportee (CSV)")
+
+    def _collect_bundle_data(self, serial: str) -> dict[str, Any]:
+        captures_dir = self.base_dir / "captures"
+        capture_files = sorted(captures_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)[:15] if captures_dir.exists() else []
+        audit_payload = {
+            "session_id": self._session_id,
+            "summary": self.audit_module.summarize_session(self._session_id),
+            "events": self.audit_module.list_events(session_id=self._session_id, limit=1000),
+        }
+        app_summary = {
+            "count": len(self._apps_all_packages),
+            "risk_counts": {
+                "HIGH": sum(1 for v in self._app_analysis.values() if str(v.get("risk", "")).upper() == "HIGH"),
+                "MEDIUM": sum(1 for v in self._app_analysis.values() if str(v.get("risk", "")).upper() == "MEDIUM"),
+                "LOW": sum(1 for v in self._app_analysis.values() if str(v.get("risk", "")).upper() == "LOW"),
+            },
+        }
+        timeline = self.audit_module.list_health_timeline(device_serial=serial or None, limit=300)
+        logs = [self.base_dir / "adb_manager.log"]
+        return {
+            "device_inspector": self._device_inspector_data,
+            "device_health": self._last_device_health_report,
+            "audit_session": audit_payload,
+            "snapshot_diff": self._snapshot_diff,
+            "app_risk_summary": app_summary,
+            "health_timeline": timeline,
+            "captures": [str(p) for p in capture_files],
+            "logs": [str(p) for p in logs if p.exists()],
+        }
+
+    def _export_support_bundle_dialog(self) -> None:
+        serial = self._selected_serial()
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        name, ok = QInputDialog.getText(self, "Support Bundle", "Nom du bundle", text="support_bundle")
+        if not ok or not name.strip():
+            return
+        include = {
+            "device_inspector": True,
+            "device_health": True,
+            "audit_session": True,
+            "snapshot_diff": True,
+            "app_risk_summary": True,
+            "health_timeline": True,
+            "captures": True,
+            "logs": False,
+        }
+        data = self._collect_bundle_data(serial)
+        result = self.bundle_module.create_bundle(
+            bundle_name=name.strip(),
+            serial=serial,
+            include=include,
+            data=data,
+            output_dir=self.base_dir / "reports" / "bundles",
+        )
+        if result.get("ok"):
+            zip_file = str(result.get("zip_file", ""))
+            Toast(self, f"Bundle exporte: {Path(zip_file).name}")
+            self._audit_event(
+                event_type="system",
+                action="support_bundle_export",
+                status="ok",
+                message=f"Support bundle exported: {Path(zip_file).name}",
+                payload=result,
+                serial=serial,
+            )
+        else:
+            Toast(self, "Echec export bundle")
 
     def _on_health_finding_selected(self) -> None:
         if not self._last_device_health_report:
@@ -3011,6 +3544,8 @@ class MainWindow(QMainWindow):
             self.style().standardIcon(QStyle.StandardPixmap.SP_DirHomeIcon),
             self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight),
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton),
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload),
         ]
         for idx, icon in enumerate(self._tab_icons):
             if idx < self.tabs.count():
@@ -3166,6 +3701,16 @@ class MainWindow(QMainWindow):
                 payload={"model": dev.model if dev else "", "transport": dev.transport if dev else ""},
                 serial=serial,
             )
+            if dev is not None and dev.state == "unauthorized":
+                self.notifications_module.add(
+                    severity="warning",
+                    category="device",
+                    title="Device unauthorized",
+                    message=f"{serial} unauthorized (accept RSA prompt)",
+                    device_serial=serial,
+                    link_type="device",
+                    link_value=serial,
+                )
         for serial in sorted(gone_serials):
             self._audit_event(
                 event_type="device",
@@ -3176,6 +3721,7 @@ class MainWindow(QMainWindow):
                 serial=serial,
             )
         self._last_device_serials = current_serials
+        self._update_notifications_badge()
         root_count = sum(1 for d in devices if d.root)
         if devices:
             active = devices[0]
@@ -3232,6 +3778,8 @@ class MainWindow(QMainWindow):
         self._refresh_captures()
         self._refresh_device_inspector()
         self._run_health_check()
+        if hasattr(self, "notify_table"):
+            self._refresh_notifications_view()
         self._audit_event(
             event_type="system",
             action="manual_refresh",
@@ -3269,9 +3817,29 @@ class MainWindow(QMainWindow):
             message=message,
             payload=payload or {},
         )
+        if status in {"error", "warning"}:
+            sev = "error" if status == "error" else "warning"
+            self.notifications_module.add(
+                severity=sev,
+                category=event_type,
+                title=action,
+                message=message or action,
+                device_serial=device_serial,
+                link_type="audit",
+                link_value=action,
+            )
+            self._update_notifications_badge()
+            if hasattr(self, "notify_table"):
+                self._refresh_notifications_view()
         if hasattr(self, "audit_session_box"):
             # Light refresh only if Reports tab exists.
             self._refresh_audit_events()
+
+    def _update_notifications_badge(self) -> None:
+        if not hasattr(self, "notify_badge"):
+            return
+        count = self.notifications_module.unread_count()
+        self.notify_badge.setText(f"Notif: {count}")
 
     def _refresh_audit_views(self) -> None:
         self._refresh_audit_session_box()
@@ -3468,6 +4036,21 @@ class MainWindow(QMainWindow):
         diff = self.snapshot_module.compare(older, newer)
         self._snapshot_diff = diff
         self._render_snapshot_diff(diff)
+        sm = diff.get("summary", {})
+        if isinstance(sm, dict):
+            important = int(sm.get("packages_removed", 0)) > 0 or int(sm.get("apps_risk_changes", 0)) > 0
+            if important:
+                self.notifications_module.add(
+                    severity="warning",
+                    category="snapshot",
+                    title="Snapshot diff important",
+                    message=f"removed={sm.get('packages_removed', 0)} risk_changes={sm.get('apps_risk_changes', 0)}",
+                    device_serial=str(self._selected_serial() or ""),
+                    link_type="snapshot",
+                    link_value=f"{name_a}->{name_b}",
+                )
+                self._update_notifications_badge()
+                self._refresh_notifications_view()
         self._audit_event(
             event_type="snapshot",
             action="compare_snapshots",
@@ -3480,6 +4063,7 @@ class MainWindow(QMainWindow):
     def _render_snapshot_diff(self, diff: dict[str, Any]) -> None:
         summary = diff.get("summary", {})
         packages = diff.get("packages", {})
+        app_changes = diff.get("app_changes", {})
         props = diff.get("system_properties", {})
         device_changes = diff.get("device_changes", {})
         lines = [
@@ -3492,6 +4076,14 @@ class MainWindow(QMainWindow):
             f"Packages removed: {len(packages.get('removed', []))}",
             "",
         ]
+        if isinstance(app_changes, dict):
+            ac_sum = app_changes.get("summary", {})
+            if isinstance(ac_sum, dict):
+                lines.append(
+                    "App changes: "
+                    f"updated={ac_sum.get('updated', 0)} risk_changes={ac_sum.get('risk_changes', 0)}"
+                )
+                lines.append("")
         if packages.get("added"):
             lines.append("Added:")
             lines.extend(f"+ {p}" for p in packages.get("added", [])[:60])
@@ -3911,7 +4503,57 @@ class MainWindow(QMainWindow):
             self.transfer_progress.setMaximum(max(1, total))
             self.transfer_progress.setValue(total)
             self.transfer_log.append(f"[done] total={total} ok={ok_count} partial={partial_count} error={err_count}")
+            if err_count > 0:
+                self.notifications_module.add(
+                    severity="warning",
+                    category="transfer",
+                    title="Transfer failed",
+                    message=f"errors={err_count} partial={partial_count}",
+                    device_serial=str(context.get("serial", "")),
+                    link_type="transfer",
+                    link_value="queue_execute",
+                )
+                self._update_notifications_badge()
+                self._refresh_notifications_view()
             Toast(self, f"Transfers termines: ok={ok_count} partial={partial_count} err={err_count}")
+            return
+
+        if task == "workflow_execute":
+            rep = value if isinstance(value, dict) else {}
+            status = str(rep.get("status", "partial"))
+            finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            entry = {
+                "workflow_id": rep.get("workflow_id", ""),
+                "title": rep.get("title", ""),
+                "status": status,
+                "finished_at": finished_at,
+                "serial": rep.get("serial", ""),
+            }
+            self._workflow_run_history.append(entry)
+            self._refresh_workflows_table()
+            logs = rep.get("logs", [])
+            if isinstance(logs, list):
+                self.workflow_log.append("\n".join(str(x) for x in logs[-80:]))
+            self._audit_event(
+                event_type="system",
+                action="workflow_execute",
+                status="ok" if status == "success" else "warning",
+                message=f"Workflow {rep.get('title', '')}: {status}",
+                payload=rep,
+                serial=str(context.get("serial", "")),
+            )
+            self.notifications_module.add(
+                severity="info" if status == "success" else "warning",
+                category="workflow",
+                title=str(rep.get("title", "workflow")),
+                message=f"Workflow completed: {status}",
+                device_serial=str(context.get("serial", "")),
+                link_type="workflow",
+                link_value=str(rep.get("workflow_id", "")),
+            )
+            self._update_notifications_badge()
+            self._refresh_notifications_view()
+            Toast(self, f"Workflow termine: {status}")
             return
 
         if task in {"push_file", "pull_file", "install_apk", "uninstall_app", "clear_app_data", "full_backup", "selective_backup", "restore_backup"}:

@@ -9,6 +9,7 @@ from typing import Any
 from core.adb_manager import ADBManager
 from core.utils import DeviceInfo
 from modules.app_manager import AppManagerModule
+from modules.app_change_tracker import AppChangeTrackerModule
 from modules.device_inspector import DeviceInspectorModule
 
 
@@ -17,6 +18,7 @@ class SnapshotCompareModule:
         self.adb = adb
         self.app_module = app_module
         self.inspector_module = inspector_module
+        self.app_change_tracker = AppChangeTrackerModule()
         self.snapshots_dir = snapshots_dir
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -25,6 +27,8 @@ class SnapshotCompareModule:
         inspector = self.inspector_module.inspect(serial, device)
         sysinfo = self._system_properties(serial)
         packages = sorted(self.app_module.list_packages(serial, include_system=False))
+        versions = self._package_versions(serial)
+        risks = self._package_risks(serial, packages)
         monitor = self._monitor(serial)
 
         snapshot = {
@@ -41,6 +45,8 @@ class SnapshotCompareModule:
             "inspector": inspector,
             "system_properties": sysinfo,
             "packages_user": packages,
+            "package_versions": versions,
+            "package_risks": risks,
             "monitor": monitor,
         }
         name = f"snapshot_{self._sanitize(serial)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -101,6 +107,9 @@ class SnapshotCompareModule:
             "system_properties_changed": len(changed_props),
             "device_state_changed": len(device_changes),
         }
+        app_changes = self.app_change_tracker.compare(older, newer)
+        summary["apps_updated"] = int(app_changes.get("summary", {}).get("updated", 0))
+        summary["apps_risk_changes"] = int(app_changes.get("summary", {}).get("risk_changes", 0))
 
         return {
             "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -108,6 +117,7 @@ class SnapshotCompareModule:
             "to": {"captured_at": newer.get("captured_at", ""), "serial": newer.get("serial", "")},
             "summary": summary,
             "packages": {"added": added, "removed": removed},
+            "app_changes": app_changes,
             "storage": {
                 "old_available": old_ins.get("storage_available", "n/a"),
                 "new_available": new_ins.get("storage_available", "n/a"),
@@ -136,6 +146,7 @@ class SnapshotCompareModule:
         removed = self._as_list(packages.get("removed"))
         props = self._as_dict(diff.get("system_properties"))
         dev_changes = self._as_dict(diff.get("device_changes"))
+        app_changes = self._as_dict(diff.get("app_changes"))
 
         html = [
             "<!doctype html>",
@@ -146,6 +157,7 @@ class SnapshotCompareModule:
             "<h2>Summary</h2><pre>" + self._esc(json.dumps(summary, indent=2, ensure_ascii=False)) + "</pre>",
             "<h2>Packages Added</h2><pre>" + self._esc("\n".join(added) if added else "None") + "</pre>",
             "<h2>Packages Removed</h2><pre>" + self._esc("\n".join(removed) if removed else "None") + "</pre>",
+            "<h2>App Changes</h2><pre>" + self._esc(json.dumps(app_changes, indent=2, ensure_ascii=False)) + "</pre>",
             "<h2>Device Changes</h2><pre>" + self._esc(json.dumps(dev_changes, indent=2, ensure_ascii=False)) + "</pre>",
             "<h2>System Properties Changes</h2><pre>" + self._esc(json.dumps(props, indent=2, ensure_ascii=False)) + "</pre>",
             "</body></html>",
@@ -190,6 +202,32 @@ class SnapshotCompareModule:
             "mem_total_kb": mem_total,
             "mem_available_kb": mem_available,
         }
+
+    def _package_versions(self, serial: str) -> dict[str, str]:
+        res = self.adb.run(["shell", "pm", "list", "packages", "-3", "--show-versioncode"], serial=serial, timeout=40)
+        if not res.ok:
+            return {}
+        out: dict[str, str] = {}
+        for line in res.stdout.splitlines():
+            text = line.strip()
+            m = re.match(r"package:([^\s]+)\s+versionCode:(\d+)", text)
+            if not m:
+                continue
+            out[m.group(1)] = m.group(2)
+        return out
+
+    def _package_risks(self, serial: str, packages: list[str]) -> dict[str, str]:
+        out: dict[str, str] = {}
+        max_apps = 40
+        for pkg in packages[:max_apps]:
+            try:
+                data = self.app_module.analyze_app(serial, pkg)
+                risk = str(data.get("risk", "")).strip().upper()
+                if risk:
+                    out[pkg] = risk
+            except Exception:  # noqa: BLE001
+                continue
+        return out
 
     def _sanitize(self, text: str) -> str:
         return re.sub(r"[^a-zA-Z0-9._-]", "_", text)

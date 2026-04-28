@@ -7,10 +7,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
-- 
+- Workflow Center with guided playbooks and execution history.
+- Support Bundle export (ZIP + manifest + HTML index).
+- Notification Center with severity/device/unread filters and read/delete actions.
+- Smart Sync module and transfer preview/execution modes.
+- App Change Tracker integrated into Snapshot Compare.
+- New module tests: `tests/test_ops_modules.py`.
 
 ### Changed
-- 
+- README updated for v2.4 guided ops feature set.
 
 ## [2.3.0] - 2026-04-28
 

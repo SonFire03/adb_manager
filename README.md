@@ -4,7 +4,7 @@
 [![Tests](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml/badge.svg?branch=main&label=tests)](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/SonFire03/adb_manager?display_name=tag)](https://github.com/SonFire03/adb_manager/releases)
 
-> Current focus: **v2.3 Operations Maturity Update** (transfer presets, fleet health overview, health timeline chart/filters).
+> Current focus: **v2.4 Guided Ops Update** (workflow center, support bundle, notification center, smart sync, app change tracker).
 
 Console desktop Android (PySide6) pour administration, debugging et automatisation locale via ADB.
 
@@ -33,6 +33,10 @@ ADB Manager Pro vise un usage **ops/dev quotidien**: multi-device USB/Wi-Fi, dia
   - transfer queue, per-task status, progress, dry-run preview,
   - JSON/HTML transfer report export,
   - integration with audit trail.
+- **Smart Sync**:
+  - `copy_missing_only`, `update_newer_only`, `skip_duplicates`, `mirror_selected` (non-destructive),
+  - preview plan (decision/reason/size),
+  - run sync + audit trail logging.
 - Explorateur fichiers local ↔ device (dual pane, navigation, push/pull).
 - Gestion applications + App Risk View (permissions sensibles, score `LOW/MEDIUM/HIGH`).
 - Terminal ADB + logcat live.
@@ -51,7 +55,8 @@ ADB Manager Pro vise un usage **ops/dev quotidien**: multi-device USB/Wi-Fi, dia
   - diff packages installés/supprimés,
   - variations stockage / CPU / mémoire,
   - changements propriétés système et état device,
-  - export diff JSON + HTML.
+  - export diff JSON + HTML,
+  - app change tracker (Added/Removed/Updated/Risk changes).
 - **Device Health Checks** (functional health, non-certified):
   - battery / storage / CPU-memory / thermal / connectivity / ADB stability / app stability hints,
   - score global (`Healthy`, `Needs Attention`, `Degraded`, `Critical`),
@@ -62,6 +67,20 @@ ADB Manager Pro vise un usage **ops/dev quotidien**: multi-device USB/Wi-Fi, dia
   - filtres timeline (device + date range),
   - fleet health overview (dernier score/statut/check par appareil),
   - run health checks multi-appareils (run all devices).
+
+### Guided Ops & Evidence
+- **Workflow Center / Guided Playbooks**:
+  - onboarding device, full health assessment,
+  - debug bundle collection,
+  - backup photos/screenshots,
+  - pre/post transfer checks.
+- **Support Bundle Export**:
+  - ZIP bundle with manifest + index HTML,
+  - includes selected evidence (inspector, health, audit, snapshot diff, app risk summary, timeline, captures/logs).
+- **Notification Center**:
+  - in-app notification history,
+  - severity/device/unread filtering,
+  - mark read / mark all / delete / clear.
 
 ## Architecture (rapide)
 
