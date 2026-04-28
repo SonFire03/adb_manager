@@ -1779,14 +1779,23 @@ class MainWindow(QMainWindow):
         )
         self.transfer_source = QLineEdit("/sdcard")
         self.transfer_destination = QLineEdit(str(self.base_dir / "transfers"))
+        self.transfer_saved_presets = QComboBox()
+        self.transfer_saved_presets.setMinimumWidth(220)
+        self.transfer_save_preset_btn = QPushButton("Sauver preset")
+        self.transfer_delete_preset_btn = QPushButton("Supprimer preset")
         self.transfer_pick_source_btn = QPushButton("Parcourir source")
         self.transfer_pick_dest_btn = QPushButton("Parcourir destination")
         self.transfer_add_btn = QPushButton("Ajouter file")
         self.transfer_add_btn.setObjectName("successBtn")
+        self.transfer_save_preset_btn.setObjectName("ghostBtn")
+        self.transfer_delete_preset_btn.setObjectName("dangerBtn")
         self.transfer_pick_source_btn.setObjectName("ghostBtn")
         self.transfer_pick_dest_btn.setObjectName("ghostBtn")
         top.addWidget(self.transfer_direction)
         top.addWidget(self.transfer_preset)
+        top.addWidget(self.transfer_saved_presets)
+        top.addWidget(self.transfer_save_preset_btn)
+        top.addWidget(self.transfer_delete_preset_btn)
         top.addWidget(self.transfer_source, 1)
         top.addWidget(self.transfer_pick_source_btn)
         top.addWidget(self.transfer_destination, 1)
@@ -1835,7 +1844,85 @@ class MainWindow(QMainWindow):
         self.transfer_clear_btn.clicked.connect(self._clear_transfer_queue)
         self.transfer_start_btn.clicked.connect(self._run_transfer_queue)
         self.transfer_export_btn.clicked.connect(self._export_transfer_report)
+        self.transfer_save_preset_btn.clicked.connect(self._save_transfer_preset)
+        self.transfer_delete_preset_btn.clicked.connect(self._delete_transfer_preset)
+        self.transfer_saved_presets.currentIndexChanged.connect(self._load_selected_transfer_preset)
+        self._refresh_transfer_saved_presets()
         self._on_transfer_preset_changed(self.transfer_preset.currentText())
+
+    def _refresh_transfer_saved_presets(self) -> None:
+        if not hasattr(self, "transfer_saved_presets"):
+            return
+        raw = self.config.get("transfer.saved_presets", {})
+        presets = raw if isinstance(raw, dict) else {}
+        current = str(self.transfer_saved_presets.currentData() or "")
+        self.transfer_saved_presets.blockSignals(True)
+        self.transfer_saved_presets.clear()
+        self.transfer_saved_presets.addItem("Preset sauvegarde: aucun", "")
+        for name in sorted(presets.keys()):
+            self.transfer_saved_presets.addItem(name, name)
+        if current:
+            idx = self.transfer_saved_presets.findData(current)
+            if idx >= 0:
+                self.transfer_saved_presets.setCurrentIndex(idx)
+        self.transfer_saved_presets.blockSignals(False)
+
+    def _save_transfer_preset(self) -> None:
+        name, ok = QInputDialog.getText(self, "Sauver preset transfert", "Nom du preset")
+        if not ok or not name.strip():
+            return
+        preset_name = name.strip()
+        raw = self.config.get("transfer.saved_presets", {})
+        presets = dict(raw) if isinstance(raw, dict) else {}
+        direction_ui = self.transfer_direction.currentText().strip()
+        direction = "device_to_host" if direction_ui == "device -> host" else "host_to_device"
+        presets[preset_name] = {
+            "direction": direction,
+            "preset_type": self.transfer_preset.currentText().strip(),
+            "source": self.transfer_source.text().strip(),
+            "destination": self.transfer_destination.text().strip(),
+            "dry_run": bool(self.transfer_dry_run.isChecked()),
+        }
+        self.config.set("transfer.saved_presets", presets)
+        self.config.save()
+        self._refresh_transfer_saved_presets()
+        idx = self.transfer_saved_presets.findData(preset_name)
+        if idx >= 0:
+            self.transfer_saved_presets.setCurrentIndex(idx)
+        Toast(self, f"Preset sauvegarde: {preset_name}")
+
+    def _delete_transfer_preset(self) -> None:
+        name = str(self.transfer_saved_presets.currentData() or "").strip()
+        if not name:
+            return
+        raw = self.config.get("transfer.saved_presets", {})
+        presets = dict(raw) if isinstance(raw, dict) else {}
+        if name not in presets:
+            return
+        del presets[name]
+        self.config.set("transfer.saved_presets", presets)
+        self.config.save()
+        self._refresh_transfer_saved_presets()
+        Toast(self, f"Preset supprime: {name}")
+
+    def _load_selected_transfer_preset(self, _index: int) -> None:
+        name = str(self.transfer_saved_presets.currentData() or "").strip()
+        if not name:
+            return
+        raw = self.config.get("transfer.saved_presets", {})
+        presets = raw if isinstance(raw, dict) else {}
+        item = presets.get(name, {})
+        if not isinstance(item, dict):
+            return
+        direction = str(item.get("direction", "device_to_host"))
+        self.transfer_direction.setCurrentText("device -> host" if direction == "device_to_host" else "host -> device")
+        preset_type = str(item.get("preset_type", "Custom folders"))
+        idx = self.transfer_preset.findText(preset_type)
+        if idx >= 0:
+            self.transfer_preset.setCurrentIndex(idx)
+        self.transfer_source.setText(str(item.get("source", self.transfer_source.text())))
+        self.transfer_destination.setText(str(item.get("destination", self.transfer_destination.text())))
+        self.transfer_dry_run.setChecked(bool(item.get("dry_run", False)))
 
     def _build_device_health_tab(self) -> None:
         tab = QWidget()
