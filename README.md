@@ -4,7 +4,7 @@
 [![Tests](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml/badge.svg?branch=main&label=tests)](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/SonFire03/adb_manager?display_name=tag)](https://github.com/SonFire03/adb_manager/releases)
 
-> Current focus: **v2.1 Maturity Update** (audit trail, snapshot compare, release engineering).
+> Current focus: **v2.2 Operations Update** (data transfer center + functional device health checks).
 
 Console desktop Android (PySide6) pour administration, debugging et automatisation locale via ADB.
 
@@ -26,6 +26,12 @@ ADB Manager Pro vise un usage **ops/dev quotidien**: multi-device USB/Wi-Fi, dia
 - ADB Health Check (statut global `OK/WARNING/ERROR`, checks détaillés, remédiations).
 
 ### Operations & Debug
+- **Data Transfer Center**:
+  - device -> host / host -> device,
+  - presets (`Photos & Videos`, `Documents`, `Downloads`, `DCIM`, `Screenshots`, `Custom folders`),
+  - transfer queue, per-task status, progress, dry-run preview,
+  - JSON/HTML transfer report export,
+  - integration with audit trail.
 - Explorateur fichiers local ↔ device (dual pane, navigation, push/pull).
 - Gestion applications + App Risk View (permissions sensibles, score `LOW/MEDIUM/HIGH`).
 - Terminal ADB + logcat live.
@@ -45,6 +51,11 @@ ADB Manager Pro vise un usage **ops/dev quotidien**: multi-device USB/Wi-Fi, dia
   - variations stockage / CPU / mémoire,
   - changements propriétés système et état device,
   - export diff JSON + HTML.
+- **Device Health Checks** (functional health, non-certified):
+  - battery / storage / CPU-memory / thermal / connectivity / ADB stability / app stability hints,
+  - score global (`Healthy`, `Needs Attention`, `Degraded`, `Critical`),
+  - findings structurés (severity, status, evidence, remediation),
+  - export JSON/HTML.
 
 ## Architecture (rapide)
 
@@ -83,6 +94,8 @@ ADB Manager Pro est un outil d’administration locale et de debugging.
 - Ne fournit **aucun** bypass de sécurité, contournement root, ni exploitation.
 - Ne doit être utilisé que sur des appareils possédés ou explicitement autorisés.
 - Les fonctionnalités d’analyse (Health Check, App Risk) sont informatives, pas un scanner offensif.
+- Les `Device Health Checks` sont des **indicateurs techniques fonctionnels** basés sur ADB/dumpsys/logcat.
+  Ce n'est pas un diagnostic matériel certifié constructeur.
 
 ## Screenshots (v2)
 
@@ -96,6 +109,8 @@ Reports / traçabilité:
 
 ![Session Reports](screen/screen-v2-07.png)
 ![Snapshot Compare](screen/screen-v2-08.png)
+![Data Transfer Center](screen/screen-v2-09.png)
+![Device Health Checks](screen/screen-v2-10.png)
 
 ## Tests
 

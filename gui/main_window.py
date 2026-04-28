@@ -65,6 +65,8 @@ from gui.widgets import ScriptEditor, TerminalWidget, Toast
 from modules.app_manager import AppManagerModule
 from modules.automation import AutomationModule
 from modules.backup_restore import BackupRestoreModule
+from modules.data_transfer import DataTransferModule
+from modules.device_health import DeviceHealthModule
 from modules.device_inspector import DeviceInspectorModule
 from modules.device_profiles import DeviceProfile, DeviceProfilesModule
 from modules.file_manager import FileManagerModule
@@ -94,6 +96,8 @@ class MainWindow(QMainWindow):
         self.file_module = FileManagerModule(self.adb)
         self.app_module = AppManagerModule(self.adb)
         self.system_module = SystemInfoModule(self.adb)
+        self.transfer_module = DataTransferModule(self.adb)
+        self.device_health_module = DeviceHealthModule(self.adb)
         self.inspector_module = DeviceInspectorModule(self.adb)
         self.health_module = HealthCheckModule(self.adb)
         self.automation_module = AutomationModule(self.adb, base_dir / "config")
@@ -165,6 +169,10 @@ class MainWindow(QMainWindow):
         self._snapshot_last_captured_file = ""
         self._snapshot_name_to_path: dict[str, str] = {}
         self._last_device_serials: set[str] = set()
+        self._transfer_queue: list[dict[str, Any]] = []
+        self._transfer_reports: list[dict[str, Any]] = []
+        self._transfer_running = False
+        self._last_device_health_report: dict[str, Any] = {}
 
         self.setWindowTitle("ADB Manager Pro")
         self.resize(1440, 920)
@@ -320,6 +328,8 @@ class MainWindow(QMainWindow):
         self._build_remote_tab()
         self._build_backup_tab()
         self._build_captures_tab()
+        self._build_transfer_tab()
+        self._build_device_health_tab()
         self._build_reports_tab()
         self._set_tab_icons()
         self._build_sidebar_nav()
@@ -1713,6 +1723,484 @@ class MainWindow(QMainWindow):
         self._refresh_audit_views()
         self._refresh_snapshot_boxes()
 
+    def _build_transfer_tab(self) -> None:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+
+        top = QHBoxLayout()
+        self.transfer_direction = QComboBox()
+        self.transfer_direction.addItems(["device -> host", "host -> device"])
+        self.transfer_preset = QComboBox()
+        self.transfer_preset.addItems(
+            ["Custom folders", "Photos & Videos", "Documents", "Downloads", "DCIM", "Screenshots", "Export APK only"]
+        )
+        self.transfer_source = QLineEdit("/sdcard")
+        self.transfer_destination = QLineEdit(str(self.base_dir / "transfers"))
+        self.transfer_pick_source_btn = QPushButton("Parcourir source")
+        self.transfer_pick_dest_btn = QPushButton("Parcourir destination")
+        self.transfer_add_btn = QPushButton("Ajouter file")
+        self.transfer_add_btn.setObjectName("successBtn")
+        self.transfer_pick_source_btn.setObjectName("ghostBtn")
+        self.transfer_pick_dest_btn.setObjectName("ghostBtn")
+        top.addWidget(self.transfer_direction)
+        top.addWidget(self.transfer_preset)
+        top.addWidget(self.transfer_source, 1)
+        top.addWidget(self.transfer_pick_source_btn)
+        top.addWidget(self.transfer_destination, 1)
+        top.addWidget(self.transfer_pick_dest_btn)
+        top.addWidget(self.transfer_add_btn)
+        layout.addLayout(top)
+
+        action_row = QHBoxLayout()
+        self.transfer_dry_run = QCheckBox("Dry-run (preview uniquement)")
+        self.transfer_start_btn = QPushButton("Executer queue")
+        self.transfer_clear_btn = QPushButton("Vider queue")
+        self.transfer_export_btn = QPushButton("Export rapport transfert")
+        self.transfer_start_btn.setObjectName("successBtn")
+        self.transfer_clear_btn.setObjectName("dangerBtn")
+        self.transfer_export_btn.setObjectName("ghostBtn")
+        action_row.addWidget(self.transfer_dry_run)
+        action_row.addStretch()
+        action_row.addWidget(self.transfer_start_btn)
+        action_row.addWidget(self.transfer_clear_btn)
+        action_row.addWidget(self.transfer_export_btn)
+        layout.addLayout(action_row)
+
+        self.transfer_queue_table = QTableWidget(0, 7)
+        self.transfer_queue_table.setHorizontalHeaderLabels(["ID", "Direction", "Preset", "Source", "Destination", "Dry-run", "Etat"])
+        self.transfer_queue_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.transfer_queue_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.transfer_queue_table, 1)
+
+        self.transfer_progress = QProgressBar()
+        self.transfer_progress.setMinimum(0)
+        self.transfer_progress.setMaximum(100)
+        self.transfer_progress.setValue(0)
+        layout.addWidget(self.transfer_progress)
+
+        self.transfer_log = QTextEdit()
+        self.transfer_log.setReadOnly(True)
+        self.transfer_log.setPlaceholderText("Logs de transfert, verifications et remediations...")
+        self.transfer_log.setMaximumHeight(190)
+        layout.addWidget(self.transfer_log)
+
+        self.tabs.addTab(tab, "Transfers")
+        self.transfer_preset.currentTextChanged.connect(self._on_transfer_preset_changed)
+        self.transfer_pick_source_btn.clicked.connect(self._pick_transfer_source)
+        self.transfer_pick_dest_btn.clicked.connect(self._pick_transfer_destination)
+        self.transfer_add_btn.clicked.connect(self._add_transfer_task)
+        self.transfer_clear_btn.clicked.connect(self._clear_transfer_queue)
+        self.transfer_start_btn.clicked.connect(self._run_transfer_queue)
+        self.transfer_export_btn.clicked.connect(self._export_transfer_report)
+        self._on_transfer_preset_changed(self.transfer_preset.currentText())
+
+    def _build_device_health_tab(self) -> None:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+
+        top = QHBoxLayout()
+        self.health_refresh_btn2 = QPushButton("Run Device Health Checks")
+        self.health_refresh_btn2.setObjectName("successBtn")
+        self.health_export_json_btn2 = QPushButton("Export Health JSON")
+        self.health_export_html_btn2 = QPushButton("Export Health HTML")
+        self.health_export_json_btn2.setObjectName("ghostBtn")
+        self.health_export_html_btn2.setObjectName("ghostBtn")
+        self.health_score_badge = QLabel("Score: n/a")
+        self.health_score_badge.setObjectName("deviceBadge")
+        top.addWidget(self.health_refresh_btn2)
+        top.addWidget(self.health_export_json_btn2)
+        top.addWidget(self.health_export_html_btn2)
+        top.addStretch()
+        top.addWidget(self.health_score_badge)
+        layout.addLayout(top)
+
+        split = QSplitter(Qt.Orientation.Horizontal)
+        split.setChildrenCollapsible(False)
+        left = QWidget()
+        right = QWidget()
+        left_l = QVBoxLayout(left)
+        right_l = QVBoxLayout(right)
+        left_l.setContentsMargins(0, 0, 0, 0)
+        right_l.setContentsMargins(0, 0, 0, 0)
+
+        self.health_sections_text = QTextEdit()
+        self.health_sections_text.setReadOnly(True)
+        self.health_sections_text.setPlaceholderText("Resume par section (battery, storage, cpu/memory, thermal, connectivity, adb stability...)")
+        left_l.addWidget(self.health_sections_text)
+
+        self.health_findings_table = QTableWidget(0, 6)
+        self.health_findings_table.setHorizontalHeaderLabels(["Category", "Title", "Severity", "Status", "Evidence", "Remediation"])
+        self.health_findings_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.health_findings_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        right_l.addWidget(self.health_findings_table, 1)
+
+        self.health_finding_raw = QTextEdit()
+        self.health_finding_raw.setReadOnly(True)
+        self.health_finding_raw.setPlaceholderText("Raw value finding selectionne...")
+        self.health_finding_raw.setMaximumHeight(160)
+        right_l.addWidget(self.health_finding_raw)
+
+        split.addWidget(left)
+        split.addWidget(right)
+        split.setStretchFactor(0, 2)
+        split.setStretchFactor(1, 3)
+        layout.addWidget(split, 1)
+
+        self.tabs.addTab(tab, "Health")
+        self.health_refresh_btn2.clicked.connect(self._run_device_health_checks)
+        self.health_export_json_btn2.clicked.connect(self._export_device_health_json)
+        self.health_export_html_btn2.clicked.connect(self._export_device_health_html)
+        self.health_findings_table.itemSelectionChanged.connect(self._on_health_finding_selected)
+
+    def _on_transfer_preset_changed(self, preset: str) -> None:
+        direction = self.transfer_direction.currentText().strip()
+        if preset == "Export APK only":
+            self.transfer_direction.setCurrentText("device -> host")
+            self.transfer_source.setText("/data/app")
+            self.transfer_destination.setText(str(self.base_dir / "transfers" / "apk_export"))
+            return
+        if preset == "Custom folders":
+            if direction == "device -> host":
+                self.transfer_source.setText("/sdcard")
+                self.transfer_destination.setText(str(self.base_dir / "transfers"))
+            else:
+                self.transfer_source.setText(str(self.base_dir))
+                self.transfer_destination.setText("/sdcard/Download")
+            return
+        preset_sources = self.transfer_module.preset_sources(preset)
+        if direction == "device -> host":
+            self.transfer_source.setText(preset_sources[0] if preset_sources else "/sdcard")
+            self.transfer_destination.setText(str(self.base_dir / "transfers" / preset.lower().replace(" ", "_")))
+        else:
+            self.transfer_source.setText(str(self.base_dir / "transfers" / preset.lower().replace(" ", "_")))
+            self.transfer_destination.setText("/sdcard/Download")
+
+    def _pick_transfer_source(self) -> None:
+        direction = self.transfer_direction.currentText().strip()
+        if direction == "host -> device":
+            path = QFileDialog.getExistingDirectory(self, "Choisir dossier source", self.transfer_source.text().strip() or str(self.base_dir))
+            if path:
+                self.transfer_source.setText(path)
+            return
+        text, ok = QInputDialog.getText(
+            self,
+            "Source device",
+            "Chemin source sur l'appareil",
+            text=self.transfer_source.text().strip() or "/sdcard",
+        )
+        if ok and text.strip():
+            self.transfer_source.setText(text.strip())
+
+    def _pick_transfer_destination(self) -> None:
+        direction = self.transfer_direction.currentText().strip()
+        if direction == "device -> host":
+            path = QFileDialog.getExistingDirectory(
+                self,
+                "Choisir dossier destination",
+                self.transfer_destination.text().strip() or str(self.base_dir / "transfers"),
+            )
+            if path:
+                self.transfer_destination.setText(path)
+            return
+        text, ok = QInputDialog.getText(
+            self,
+            "Destination device",
+            "Chemin destination sur l'appareil",
+            text=self.transfer_destination.text().strip() or "/sdcard/Download",
+        )
+        if ok and text.strip():
+            self.transfer_destination.setText(text.strip())
+
+    def _refresh_transfer_queue_table(self) -> None:
+        self.transfer_queue_table.setRowCount(len(self._transfer_queue))
+        for row, item in enumerate(self._transfer_queue):
+            self.transfer_queue_table.setItem(row, 0, QTableWidgetItem(str(item.get("task_id", ""))))
+            self.transfer_queue_table.setItem(row, 1, QTableWidgetItem(str(item.get("direction", ""))))
+            self.transfer_queue_table.setItem(row, 2, QTableWidgetItem(str(item.get("preset", ""))))
+            self.transfer_queue_table.setItem(row, 3, QTableWidgetItem(str(item.get("source", ""))))
+            self.transfer_queue_table.setItem(row, 4, QTableWidgetItem(str(item.get("destination", ""))))
+            self.transfer_queue_table.setItem(row, 5, QTableWidgetItem("yes" if bool(item.get("dry_run")) else "no"))
+            status_item = QTableWidgetItem(str(item.get("status", "queued")))
+            status = str(item.get("status", "")).lower()
+            if status in {"error", "fail"}:
+                status_item.setForeground(QColor("#fca5a5"))
+            elif status in {"partial", "warn", "warning"}:
+                status_item.setForeground(QColor("#fcd34d"))
+            elif status in {"success", "ok", "done", "dry_run"}:
+                status_item.setForeground(QColor("#86efac"))
+            self.transfer_queue_table.setItem(row, 6, status_item)
+
+    def _add_transfer_task(self) -> None:
+        serial = self._selected_serial()
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        direction_ui = self.transfer_direction.currentText().strip()
+        direction = "device_to_host" if direction_ui == "device -> host" else "host_to_device"
+        preset = self.transfer_preset.currentText().strip()
+        source = self.transfer_source.text().strip()
+        destination = self.transfer_destination.text().strip()
+        if not source or not destination:
+            Toast(self, "Source/destination requises")
+            return
+
+        sources = [source]
+        if preset not in {"Custom folders", "Export APK only"}:
+            preset_sources = self.transfer_module.preset_sources(preset)
+            if preset_sources and direction == "device_to_host":
+                sources = preset_sources
+
+        created = 0
+        for src in sources:
+            task = self.transfer_module.make_task(
+                serial=serial,
+                direction=direction,
+                source=src,
+                destination=destination,
+                preset=preset,
+                dry_run=bool(self.transfer_dry_run.isChecked()),
+            )
+            row = {
+                "task_id": task.task_id,
+                "created_at": task.created_at,
+                "serial": task.serial,
+                "direction": task.direction,
+                "source": task.source,
+                "destination": task.destination,
+                "preset": task.preset,
+                "dry_run": task.dry_run,
+                "status": "queued",
+            }
+            self._transfer_queue.append(row)
+            created += 1
+        self._refresh_transfer_queue_table()
+        self.transfer_log.append(f"[queue] {created} tache(s) ajoutees (preset={preset})")
+
+    def _clear_transfer_queue(self) -> None:
+        if self._transfer_running:
+            Toast(self, "Transfer queue en cours")
+            return
+        self._transfer_queue.clear()
+        self.transfer_progress.setValue(0)
+        self._refresh_transfer_queue_table()
+        self.transfer_log.append("[queue] videe")
+
+    def _run_transfer_queue(self) -> None:
+        if self._transfer_running:
+            return
+        if not self._transfer_queue:
+            Toast(self, "Queue vide")
+            return
+        self._transfer_running = True
+        self.transfer_start_btn.setEnabled(False)
+        self.transfer_clear_btn.setEnabled(False)
+        self.transfer_progress.setMaximum(max(1, len(self._transfer_queue)))
+        self.transfer_progress.setValue(0)
+        snapshot = [dict(item) for item in self._transfer_queue]
+        self.transfer_log.append(f"[run] execution queue ({len(snapshot)} taches)")
+
+        def _run_queue() -> dict[str, Any]:
+            results: list[dict[str, Any]] = []
+            total = len(snapshot)
+            for idx, item in enumerate(snapshot, start=1):
+                task = self.transfer_module.make_task(
+                    serial=str(item.get("serial", "")),
+                    direction=str(item.get("direction", "device_to_host")),
+                    source=str(item.get("source", "")),
+                    destination=str(item.get("destination", "")),
+                    preset=str(item.get("preset", "")),
+                    dry_run=bool(item.get("dry_run", False)),
+                )
+                task.task_id = str(item.get("task_id", task.task_id))
+                result = self.transfer_module.execute_task(task)
+                result["task_id"] = task.task_id
+                results.append(result)
+                self.bridge.command_done.emit(("transfer_progress", {"done": idx, "total": total, "result": result}))
+            return {"results": results, "total": total}
+
+        self._run_in_worker("transfer_queue_execute", _run_queue, {"serial": self._selected_serial() or ""})
+
+    def _export_transfer_report(self) -> None:
+        if not self._transfer_reports:
+            Toast(self, "Aucun rapport transfert")
+            return
+        default = self.base_dir / "reports" / f"transfer_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        path, _ = QFileDialog.getSaveFileName(self, "Exporter rapport transfert", str(default), "JSON (*.json)")
+        if not path:
+            return
+        payload = {
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "session_id": self._session_id,
+            "reports": self._transfer_reports,
+            "summary": {
+                "total": len(self._transfer_reports),
+                "ok": sum(1 for r in self._transfer_reports if bool(r.get("ok"))),
+                "partial": sum(1 for r in self._transfer_reports if str(r.get("status", "")) == "partial"),
+                "error": sum(1 for r in self._transfer_reports if str(r.get("status", "")) in {"error", "fail"}),
+            },
+        }
+        out = Path(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        html_path = out.with_suffix(".html")
+        rows = []
+        for rep in self._transfer_reports:
+            task = rep.get("task", {}) if isinstance(rep, dict) else {}
+            rows.append(
+                "<tr>"
+                f"<td>{escape(str(rep.get('task_id', task.get('task_id', ''))))}</td>"
+                f"<td>{escape(str(task.get('serial', '')))}</td>"
+                f"<td>{escape(str(task.get('direction', '')))}</td>"
+                f"<td>{escape(str(task.get('source', '')))}</td>"
+                f"<td>{escape(str(task.get('destination', '')))}</td>"
+                f"<td>{escape(str(rep.get('status', '')))}</td>"
+                f"<td>{escape(str(rep.get('message', '')))}</td>"
+                "</tr>"
+            )
+        html = (
+            "<!doctype html><html><head><meta charset='utf-8'><title>Transfer Report</title>"
+            "<style>body{font-family:Arial;background:#0b1220;color:#e5e7eb;margin:20px}"
+            "table{width:100%;border-collapse:collapse}th,td{border:1px solid #1f2937;padding:6px;font-size:12px}"
+            "th{background:#111827}</style></head><body>"
+            f"<h1>Transfer Report</h1><p>Session: {escape(self._session_id)}</p>"
+            "<table><thead><tr><th>ID</th><th>Serial</th><th>Direction</th><th>Source</th><th>Destination</th><th>Status</th><th>Message</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table></body></html>"
+        )
+        html_path.write_text(html, encoding="utf-8")
+        Toast(self, "Rapport transfert exporte (JSON + HTML)")
+
+    def _run_device_health_checks(self) -> None:
+        serial = self._selected_serial()
+        if not serial:
+            Toast(self, "Aucun appareil actif")
+            return
+        self._run_in_worker(
+            "device_health_checks",
+            lambda: self.device_health_module.run(serial, self._current_device_info()),
+            {"serial": serial},
+        )
+
+    def _render_device_health_report(self, report: dict[str, Any]) -> None:
+        self._last_device_health_report = report
+        score = int(report.get("score", 0))
+        status = str(report.get("status", "n/a"))
+        self.health_score_badge.setText(f"Score: {score}/100 • {status}")
+
+        sections = report.get("sections", {})
+        section_lines = [f"Global: {status} ({score}/100)", ""]
+        if isinstance(sections, dict):
+            for name, summary in sections.items():
+                if isinstance(summary, dict):
+                    section_lines.append(
+                        f"[{name}] pass={summary.get('pass',0)} warn={summary.get('warn',0)} fail={summary.get('fail',0)} unsupported={summary.get('unsupported',0)}"
+                    )
+        self.health_sections_text.setPlainText("\n".join(section_lines))
+
+        findings = report.get("findings", [])
+        if not isinstance(findings, list):
+            findings = []
+        self.health_findings_table.setRowCount(len(findings))
+        for row, finding in enumerate(findings):
+            f = finding if isinstance(finding, dict) else {}
+            self.health_findings_table.setItem(row, 0, QTableWidgetItem(str(f.get("category", ""))))
+            self.health_findings_table.setItem(row, 1, QTableWidgetItem(str(f.get("title", ""))))
+            sev_item = QTableWidgetItem(str(f.get("severity", "")))
+            severity = str(f.get("severity", "")).lower()
+            if severity == "high":
+                sev_item.setForeground(QColor("#fca5a5"))
+            elif severity == "medium":
+                sev_item.setForeground(QColor("#fcd34d"))
+            elif severity in {"low", "info"}:
+                sev_item.setForeground(QColor("#86efac"))
+            self.health_findings_table.setItem(row, 2, sev_item)
+            status_item = QTableWidgetItem(str(f.get("status", "")))
+            st = str(f.get("status", "")).lower()
+            if st == "fail":
+                status_item.setForeground(QColor("#fca5a5"))
+            elif st == "warn":
+                status_item.setForeground(QColor("#fcd34d"))
+            elif st == "pass":
+                status_item.setForeground(QColor("#86efac"))
+            self.health_findings_table.setItem(row, 3, status_item)
+            self.health_findings_table.setItem(row, 4, QTableWidgetItem(str(f.get("evidence", ""))))
+            self.health_findings_table.setItem(row, 5, QTableWidgetItem(str(f.get("remediation", ""))))
+
+    def _on_health_finding_selected(self) -> None:
+        if not self._last_device_health_report:
+            return
+        findings = self._last_device_health_report.get("findings", [])
+        if not isinstance(findings, list):
+            return
+        row = self.health_findings_table.currentRow()
+        if row < 0 or row >= len(findings):
+            return
+        finding = findings[row]
+        if not isinstance(finding, dict):
+            self.health_finding_raw.setPlainText("{}")
+            return
+        self.health_finding_raw.setPlainText(json.dumps(finding, indent=2, ensure_ascii=False))
+
+    def _export_device_health_json(self) -> None:
+        if not self._last_device_health_report:
+            Toast(self, "Aucun rapport health")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Device Health JSON",
+            str(self.base_dir / "reports" / f"device_health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(self._last_device_health_report, indent=2, ensure_ascii=False), encoding="utf-8")
+        Toast(self, "Device health exporte (JSON)")
+
+    def _export_device_health_html(self) -> None:
+        if not self._last_device_health_report:
+            Toast(self, "Aucun rapport health")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Device Health HTML",
+            str(self.base_dir / "reports" / f"device_health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"),
+            "HTML (*.html)",
+        )
+        if not path:
+            return
+        report = self._last_device_health_report
+        findings = report.get("findings", [])
+        rows = []
+        if isinstance(findings, list):
+            for finding in findings:
+                f = finding if isinstance(finding, dict) else {}
+                rows.append(
+                    "<tr>"
+                    f"<td>{escape(str(f.get('category', '')))}</td>"
+                    f"<td>{escape(str(f.get('title', '')))}</td>"
+                    f"<td>{escape(str(f.get('severity', '')))}</td>"
+                    f"<td>{escape(str(f.get('status', '')))}</td>"
+                    f"<td>{escape(str(f.get('evidence', '')))}</td>"
+                    f"<td>{escape(str(f.get('remediation', '')))}</td>"
+                    "</tr>"
+                )
+        html = (
+            "<!doctype html><html><head><meta charset='utf-8'><title>Device Health Report</title>"
+            "<style>body{font-family:Arial;background:#0b1220;color:#e5e7eb;margin:20px}"
+            "table{width:100%;border-collapse:collapse}th,td{border:1px solid #1f2937;padding:6px;font-size:12px}"
+            "th{background:#111827}</style></head><body>"
+            f"<h1>Device Health</h1><p>Serial: {escape(str(report.get('serial','')))} | Score: {escape(str(report.get('score','')))} | Status: {escape(str(report.get('status','')))}</p>"
+            "<table><thead><tr><th>Category</th><th>Title</th><th>Severity</th><th>Status</th><th>Evidence</th><th>Remediation</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table></body></html>"
+        )
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(html, encoding="utf-8")
+        Toast(self, "Device health exporte (HTML)")
+
     def _resolve_scrcpy_bin(self) -> str | None:
         raw = self.scrcpy_path_input.text().strip() if hasattr(self, "scrcpy_path_input") else "scrcpy"
         if not raw:
@@ -2181,6 +2669,8 @@ class MainWindow(QMainWindow):
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon),
             self.style().standardIcon(QStyle.StandardPixmap.SP_DirHomeIcon),
+            self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight),
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton),
         ]
         for idx, icon in enumerate(self._tab_icons):
             if idx < self.tabs.count():
@@ -3022,6 +3512,66 @@ class MainWindow(QMainWindow):
                 payload={"target_serial": report.get("target_serial", ""), "checks": len(report.get("checks", []))},
                 serial=str(context.get("serial", "")),
             )
+            return
+
+        if task == "device_health_checks":
+            report = value if isinstance(value, dict) else {}
+            self._render_device_health_report(report)
+            self.statusBar().showMessage("Device Health Checks termines")
+            findings = report.get("findings", []) if isinstance(report, dict) else []
+            self._audit_event(
+                event_type="system",
+                action="device_health_checks",
+                status="ok",
+                message=str(report.get("summary", "Device health checks"))[:220] if isinstance(report, dict) else "Device health checks",
+                payload={"score": report.get("score", 0), "status": report.get("status", ""), "findings": len(findings) if isinstance(findings, list) else 0},
+                serial=str(context.get("serial", "")),
+            )
+            return
+
+        if task == "transfer_queue_execute":
+            payload = value if isinstance(value, dict) else {}
+            results = payload.get("results", []) if isinstance(payload, dict) else []
+            total = int(payload.get("total", len(results))) if isinstance(payload, dict) else len(results)
+            self._transfer_running = False
+            self.transfer_start_btn.setEnabled(True)
+            self.transfer_clear_btn.setEnabled(True)
+            ok_count = 0
+            partial_count = 0
+            err_count = 0
+            if isinstance(results, list):
+                for rep in results:
+                    if not isinstance(rep, dict):
+                        continue
+                    self._transfer_reports.append(rep)
+                    st = str(rep.get("status", "")).lower()
+                    if st in {"success", "ok", "dry_run"}:
+                        ok_count += 1
+                    elif st in {"partial", "warn", "warning"}:
+                        partial_count += 1
+                    else:
+                        err_count += 1
+                    task_data = rep.get("task", {})
+                    if isinstance(task_data, dict):
+                        self._audit_event(
+                            event_type="file",
+                            action="data_transfer",
+                            status="ok" if st in {"success", "ok", "dry_run"} else ("warning" if st in {"partial", "warn", "warning"} else "error"),
+                            message=f"{task_data.get('source', '')} -> {task_data.get('destination', '')} [{st}]",
+                            payload={
+                                "task_id": rep.get("task_id", ""),
+                                "direction": task_data.get("direction", ""),
+                                "preset": task_data.get("preset", ""),
+                                "estimate": rep.get("estimate", {}),
+                                "verification": rep.get("verification", {}),
+                                "returncode": rep.get("returncode", 0),
+                            },
+                            serial=str(task_data.get("serial", context.get("serial", ""))),
+                        )
+            self.transfer_progress.setMaximum(max(1, total))
+            self.transfer_progress.setValue(total)
+            self.transfer_log.append(f"[done] total={total} ok={ok_count} partial={partial_count} error={err_count}")
+            Toast(self, f"Transfers termines: ok={ok_count} partial={partial_count} err={err_count}")
             return
 
         if task in {"push_file", "pull_file", "install_apk", "uninstall_app", "clear_app_data", "full_backup", "selective_backup", "restore_backup"}:
@@ -5019,6 +5569,23 @@ class MainWindow(QMainWindow):
             self.batch_progress_label.setText(f"En cours: {done}/{total} | OK={ok} ERR={err}")
             if last_command:
                 self.statusBar().showMessage(f"Batch: {done}/{total} - {last_command[:100]}")
+        elif name == "transfer_progress":
+            payload = result if isinstance(result, dict) else {}
+            done = int(payload.get("done", 0))
+            total = int(payload.get("total", 0))
+            rep = payload.get("result", {})
+            if isinstance(rep, dict):
+                tid = str(rep.get("task_id", ""))
+                status = str(rep.get("status", ""))
+                msg = str(rep.get("message", ""))
+                for row in self._transfer_queue:
+                    if str(row.get("task_id", "")) == tid:
+                        row["status"] = status
+                        break
+                self.transfer_log.append(f"[{done}/{total}] {tid} -> {status}: {msg[:220]}")
+                self._refresh_transfer_queue_table()
+            self.transfer_progress.setMaximum(max(1, total))
+            self.transfer_progress.setValue(done)
         elif name == "app_icon":
             payload = result if isinstance(result, dict) else {}
             serial = str(payload.get("serial", "")).strip()

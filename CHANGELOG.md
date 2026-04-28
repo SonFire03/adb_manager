@@ -7,10 +7,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
-- 
+- Data Transfer Center module (queue, presets, dry-run, progress, JSON/HTML transfer reports).
+- Device Health Checks module (battery/storage/cpu-memory/thermal/connectivity/adb/app hints with global score).
+- UI tabs `Transfers` and `Health` with exports and detailed findings rendering.
+- Audit trail integration for transfer executions and device health runs.
+- Unit tests for transfer and device health modules (`tests/test_transfer_health_modules.py`).
 
 ### Changed
-- 
+- README updated to v2.2 positioning and functional health-check framing.
 
 ## [2.1.0] - 2026-04-27
 
