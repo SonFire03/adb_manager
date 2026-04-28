@@ -1844,7 +1844,9 @@ class MainWindow(QMainWindow):
 
         top = QHBoxLayout()
         self.health_refresh_btn2 = QPushButton("Run Device Health Checks")
+        self.health_refresh_all_btn = QPushButton("Run All Devices")
         self.health_refresh_btn2.setObjectName("successBtn")
+        self.health_refresh_all_btn.setObjectName("successBtn")
         self.health_export_json_btn2 = QPushButton("Export Health JSON")
         self.health_export_html_btn2 = QPushButton("Export Health HTML")
         self.health_history_refresh_btn = QPushButton("Refresh Timeline")
@@ -1856,6 +1858,7 @@ class MainWindow(QMainWindow):
         self.health_score_badge = QLabel("Score: n/a")
         self.health_score_badge.setObjectName("deviceBadge")
         top.addWidget(self.health_refresh_btn2)
+        top.addWidget(self.health_refresh_all_btn)
         top.addWidget(self.health_export_json_btn2)
         top.addWidget(self.health_export_html_btn2)
         top.addWidget(self.health_history_refresh_btn)
@@ -1912,16 +1915,41 @@ class MainWindow(QMainWindow):
         self.health_timeline_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.health_timeline_table.setMaximumHeight(220)
         history_l.addWidget(self.health_timeline_table)
+
+        self.health_fleet_table = QTableWidget(0, 5)
+        self.health_fleet_table.setHorizontalHeaderLabels(["Device", "Transport", "Last Score", "Last Status", "Last Check"])
+        self.health_fleet_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.health_fleet_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.health_fleet_table.setMaximumHeight(180)
+        history_l.addWidget(self.health_fleet_table)
         layout.addWidget(history_box)
 
         self.tabs.addTab(tab, "Health")
         self.health_refresh_btn2.clicked.connect(self._run_device_health_checks)
+        self.health_refresh_all_btn.clicked.connect(self._run_device_health_checks_all)
         self.health_export_json_btn2.clicked.connect(self._export_device_health_json)
         self.health_export_html_btn2.clicked.connect(self._export_device_health_html)
         self.health_findings_table.itemSelectionChanged.connect(self._on_health_finding_selected)
         self.health_history_refresh_btn.clicked.connect(self._refresh_health_timeline)
         self.health_history_export_btn.clicked.connect(self._export_health_timeline_csv)
         self._refresh_health_timeline()
+
+    def _run_device_health_checks_all(self) -> None:
+        if not self._last_devices:
+            Toast(self, "Aucun appareil connecte")
+            return
+        serials = [d.serial for d in self._last_devices if d.state == "device"]
+        if not serials:
+            Toast(self, "Aucun appareil autorise (state=device)")
+            return
+        for serial in serials:
+            device = next((d for d in self._last_devices if d.serial == serial), None)
+            self._run_in_worker(
+                "device_health_checks",
+                lambda s=serial, dev=device: self.device_health_module.run(s, dev),
+                {"serial": serial},
+            )
+        Toast(self, f"Health checks lances pour {len(serials)} appareil(s)")
 
     def _on_transfer_preset_changed(self, preset: str) -> None:
         direction = self.transfer_direction.currentText().strip()
@@ -2255,6 +2283,40 @@ class MainWindow(QMainWindow):
         else:
             self.health_timeline_summary.setText("Aucun health check historise pour ce filtre.")
             self.health_timeline_chart.set_scores([])
+        self._refresh_health_fleet()
+
+    def _refresh_health_fleet(self) -> None:
+        if not hasattr(self, "health_fleet_table"):
+            return
+        by_serial: dict[str, dict[str, Any]] = {}
+        for row in self._health_history_rows:
+            serial = str(row.get("serial", "")).strip()
+            if not serial:
+                continue
+            if serial not in by_serial:
+                by_serial[serial] = row
+        devices = {d.serial: d for d in self._last_devices}
+        ordered = sorted(by_serial.items(), key=lambda item: item[1].get("timestamp", ""), reverse=True)
+        self.health_fleet_table.setRowCount(len(ordered))
+        for r, (serial, row) in enumerate(ordered):
+            dev = devices.get(serial)
+            transport = dev.transport if dev is not None else ""
+            score = int(row.get("score", -1))
+            status = str(row.get("status", ""))
+            ts = str(row.get("timestamp", ""))
+            self.health_fleet_table.setItem(r, 0, QTableWidgetItem(serial))
+            self.health_fleet_table.setItem(r, 1, QTableWidgetItem(transport))
+            score_item = QTableWidgetItem(str(score) if score >= 0 else "n/a")
+            if score >= 0:
+                if score < 40:
+                    score_item.setForeground(QColor("#fca5a5"))
+                elif score < 70:
+                    score_item.setForeground(QColor("#fcd34d"))
+                else:
+                    score_item.setForeground(QColor("#86efac"))
+            self.health_fleet_table.setItem(r, 2, score_item)
+            self.health_fleet_table.setItem(r, 3, QTableWidgetItem(status))
+            self.health_fleet_table.setItem(r, 4, QTableWidgetItem(ts))
 
     def _export_health_timeline_csv(self) -> None:
         if not self._health_history_rows:
