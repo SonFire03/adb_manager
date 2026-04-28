@@ -1904,6 +1904,17 @@ class MainWindow(QMainWindow):
         history_l = QVBoxLayout(history_box)
         history_l.setContentsMargins(10, 10, 10, 10)
         history_l.setSpacing(6)
+        timeline_filters = QHBoxLayout()
+        self.health_timeline_device_filter = QComboBox()
+        self.health_timeline_device_filter.addItem("Tous devices", "")
+        self.health_timeline_date_from = QLineEdit()
+        self.health_timeline_date_from.setPlaceholderText("From YYYY-MM-DD")
+        self.health_timeline_date_to = QLineEdit()
+        self.health_timeline_date_to.setPlaceholderText("To YYYY-MM-DD")
+        timeline_filters.addWidget(self.health_timeline_device_filter)
+        timeline_filters.addWidget(self.health_timeline_date_from)
+        timeline_filters.addWidget(self.health_timeline_date_to)
+        history_l.addLayout(timeline_filters)
         self.health_timeline_summary = QLabel("Aucune donnee timeline")
         self.health_timeline_summary.setObjectName("metricLabel")
         history_l.addWidget(self.health_timeline_summary)
@@ -1932,6 +1943,9 @@ class MainWindow(QMainWindow):
         self.health_findings_table.itemSelectionChanged.connect(self._on_health_finding_selected)
         self.health_history_refresh_btn.clicked.connect(self._refresh_health_timeline)
         self.health_history_export_btn.clicked.connect(self._export_health_timeline_csv)
+        self.health_timeline_device_filter.currentIndexChanged.connect(self._refresh_health_timeline)
+        self.health_timeline_date_from.textChanged.connect(self._refresh_health_timeline)
+        self.health_timeline_date_to.textChanged.connect(self._refresh_health_timeline)
         self._refresh_health_timeline()
 
     def _run_device_health_checks_all(self) -> None:
@@ -2243,12 +2257,22 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "health_timeline_table"):
             return
         serial = self._selected_serial() or ""
-        timeline = self.audit_module.list_health_timeline(device_serial=serial or None, limit=250)
+        filter_serial = str(self.health_timeline_device_filter.currentData() or "").strip() if hasattr(self, "health_timeline_device_filter") else ""
+        target_serial = filter_serial or serial
+        timeline = self.audit_module.list_health_timeline(device_serial=target_serial or None, limit=500)
+        date_from = self._normalize_date_filter(self.health_timeline_date_from.text() if hasattr(self, "health_timeline_date_from") else "")
+        date_to = self._normalize_date_filter(self.health_timeline_date_to.text() if hasattr(self, "health_timeline_date_to") else "")
         rows: list[dict[str, Any]] = []
         for item in timeline:
+            ts = str(item.get("timestamp", ""))
+            day = ts[:10]
+            if date_from and day < date_from:
+                continue
+            if date_to and day > date_to:
+                continue
             rows.append(
                 {
-                    "timestamp": str(item.get("timestamp", "")),
+                    "timestamp": ts,
                     "serial": str(item.get("device_serial", "")),
                     "score": int(item.get("score", -1)) if str(item.get("score", "-1")).lstrip("-").isdigit() else -1,
                     "status": str(item.get("status", "")),
@@ -2256,6 +2280,7 @@ class MainWindow(QMainWindow):
                 }
             )
         self._health_history_rows = rows
+        self._refresh_health_timeline_device_filter(rows)
         self.health_timeline_table.setRowCount(len(rows))
         scores: list[int] = []
         for r, row in enumerate(rows):
@@ -2284,6 +2309,22 @@ class MainWindow(QMainWindow):
             self.health_timeline_summary.setText("Aucun health check historise pour ce filtre.")
             self.health_timeline_chart.set_scores([])
         self._refresh_health_fleet()
+
+    def _refresh_health_timeline_device_filter(self, rows: list[dict[str, Any]]) -> None:
+        if not hasattr(self, "health_timeline_device_filter"):
+            return
+        current = str(self.health_timeline_device_filter.currentData() or "")
+        serials = sorted({str(r.get("serial", "")).strip() for r in rows if str(r.get("serial", "")).strip()})
+        self.health_timeline_device_filter.blockSignals(True)
+        self.health_timeline_device_filter.clear()
+        self.health_timeline_device_filter.addItem("Tous devices", "")
+        for s in serials:
+            self.health_timeline_device_filter.addItem(s, s)
+        if current:
+            idx = self.health_timeline_device_filter.findData(current)
+            if idx >= 0:
+                self.health_timeline_device_filter.setCurrentIndex(idx)
+        self.health_timeline_device_filter.blockSignals(False)
 
     def _refresh_health_fleet(self) -> None:
         if not hasattr(self, "health_fleet_table"):
