@@ -4,7 +4,7 @@ PYTEST ?= .venv/bin/pytest
 RUFF ?= .venv/bin/ruff
 BLACK ?= .venv/bin/black
 
-.PHONY: deps lint fmt-check test coverage check release-check
+.PHONY: deps lint fmt-check test coverage core-coverage check release-check
 
 deps:
 	$(PIP) install -r requirements.txt
@@ -21,6 +21,10 @@ test:
 
 coverage:
 	$(PYTEST) -q --cov --cov-report=term-missing --cov-fail-under=80
+
+core-coverage:
+	$(PYTEST) -q --cov --cov-report=term-missing --cov-fail-under=80
+	coverage report --include="core/*" --fail-under=85
 
 check: lint fmt-check test
 

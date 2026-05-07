@@ -32,6 +32,9 @@ echo "==> Black"
 echo "==> Tests + Coverage"
 "$PYTEST_BIN" -q --cov --cov-report=term-missing --cov-fail-under=80
 
+echo "==> Core coverage gate"
+coverage report --include="core/*" --fail-under=85
+
 echo "==> Changelog/README sanity"
 grep -q "## \\[Unreleased\\]" CHANGELOG.md
 grep -q "Current stable release:" README.md

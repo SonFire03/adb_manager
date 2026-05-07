@@ -111,6 +111,7 @@ Only the most demonstrative views are kept here:
 - CI pipeline runs on every push/PR: lint/test gates in GitHub Actions.
 - Unit test suite covers core modules and ops modules (notifications, sync, bundle, app-change logic).
 - Local quality commands are standardized via `Makefile` (`make check`, `make coverage`, `make release-check`).
+- Dedicated core-quality gate enforces minimum coverage on `core/*`.
 - Current command:
 
 ```bash
@@ -147,4 +148,4 @@ For deeper release checks and notes format, see `docs/release/RELEASE_NOTES_TEMP
 
 ## Licence
 
-Ajouter une licence explicite (MIT recommandé) avant diffusion plus large.
+This project is licensed under the MIT License. See `LICENSE` and `NOTICE`.

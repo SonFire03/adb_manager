@@ -6,6 +6,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Added
+- MIT `LICENSE` and minimal `NOTICE` file.
+- New tests for `core/utils.py` (ConfigManager, HistoryDB, setup_logging paths).
+
+### Changed
+- CI now enforces an additional core coverage gate (`coverage report --include="core/*" --fail-under=85`).
+- `scripts/release_check.sh` and `Makefile` include the core coverage gate.
+
 ## [2.5.2] - 2026-05-07
 
 ### Added
