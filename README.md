@@ -2,11 +2,12 @@
 
 [![CI](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml/badge.svg)](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml)
 [![Tests](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml/badge.svg?branch=main&label=tests)](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen)](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/SonFire03/adb_manager?display_name=tag)](https://github.com/SonFire03/adb_manager/releases)
 
 Desktop console (PySide6) for **local Android operations** via ADB: device health, guided workflows, transfers, troubleshooting evidence, and traceable reporting.
 
-Current stable release: **v2.5.0**
+Current stable release: **v2.5.1**
 
 ## Why It Stands Out
 
@@ -139,7 +140,7 @@ For deeper release checks and notes format, see `docs/release/RELEASE_NOTES_TEMP
 - CI quality gate: add `ruff` + `black --check` + `pytest` in one mandatory workflow.
 - Coverage target: reach >= 80% on `core/` and `modules/` with `pytest-cov`.
 - Reliability: add unit tests for config/logging edge-cases and flaky ADB parsing paths.
-- Docs quality: add `docs/operations-playbook.md` with reproducible runbooks for health/sync/bundle workflows.
+- Docs quality: add `docs/operations-playbook.md` with reproducible runbooks for health/sync/bundle workflows. ✅
 - Release hygiene: add `scripts/release_check.sh` to validate tests, changelog, and version consistency before tagging.
 
 ## Licence
