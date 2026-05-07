@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from core.device_manager import DeviceManager
 from core.plugin_manager import PluginManager
@@ -81,6 +82,67 @@ class DeviceManagerTests(unittest.TestCase):
         self.assertEqual(len(adb.history.events), 2)
         self.assertTrue(mod.connect_wifi("192.168.1.3"))
         self.assertEqual(len(mod.current_devices()), 2)
+        mod.shutdown()
+
+    def test_list_devices_failure_notifies_empty(self) -> None:
+        class _FailADB(_ADBStub):
+            def run(self, args, serial=None, timeout=None):  # noqa: ANN001
+                text = " ".join(args) if isinstance(args, list) else str(args)
+                if text == "devices -l":
+                    return CommandResult(False, ["adb", "devices", "-l"], "", "err", 1)
+                return super().run(args, serial=serial, timeout=timeout)
+
+        adb = _FailADB()
+        mod = DeviceManager(adb)  # type: ignore[arg-type]
+        seen: list[list] = []
+        mod.add_listener(lambda devices: seen.append(devices))
+        out = mod.list_devices()
+        self.assertEqual(out, [])
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0], [])
+        mod.shutdown()
+
+    def test_listener_exception_is_swallowed(self) -> None:
+        adb = _ADBStub()
+        mod = DeviceManager(adb)  # type: ignore[arg-type]
+
+        def _bad_listener(_devices):  # noqa: ANN001
+            raise RuntimeError("boom")
+
+        called: list[int] = []
+        mod.add_listener(_bad_listener)
+        mod.add_listener(lambda devices: called.append(len(devices)))
+        out = mod.list_devices()
+        self.assertEqual(len(out), 2)
+        self.assertEqual(called, [2])
+        mod.shutdown()
+
+    def test_scan_for_wifi_and_poll_async(self) -> None:
+        adb = _ADBStub()
+        mod = DeviceManager(adb)  # type: ignore[arg-type]
+
+        class _Sock:
+            def __init__(self, *_args, **_kwargs) -> None:  # noqa: ANN002, ANN003
+                self.timeout = 0.0
+
+            def settimeout(self, value: float) -> None:
+                self.timeout = value
+
+            def connect_ex(self, target):  # noqa: ANN001
+                ip, port = target
+                if port == 5555 and ip.endswith(".2"):
+                    return 0
+                return 1
+
+            def close(self) -> None:
+                return None
+
+        with patch("socket.socket", side_effect=lambda *a, **k: _Sock()):  # noqa: ARG005
+            found = mod.scan_for_wifi("192.168.1.")
+        self.assertIn("192.168.1.2", found)
+
+        # Ensure async poll path executes without raising.
+        mod.poll_async()
         mod.shutdown()
 
 

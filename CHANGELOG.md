@@ -6,6 +6,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Added
+- `.github/CODEOWNERS` to protect critical paths (`core/*`, `modules/*`, workflows).
+- New `DeviceManager` tests for error notification, listener-fault tolerance, async poll, and Wi-Fi subnet scan paths.
+
+### Changed
+- `core/device_manager.py` coverage increased through targeted test scenarios (v2.5.4 quality sprint kickoff).
+
 ## [2.5.3] - 2026-05-07
 
 ### Added

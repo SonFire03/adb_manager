@@ -1,0 +1,11 @@
+# Default owner for the repository
+* @SonFire03
+
+# Core runtime and command path
+/core/* @SonFire03
+
+# Product modules
+/modules/* @SonFire03
+
+# CI and automation rules
+/.github/workflows/* @SonFire03
