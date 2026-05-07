@@ -232,7 +232,9 @@ class DataTransferTests(unittest.TestCase):
             destination="/sdcard/Download",
             dry_run=False,
         )
-        with patch.object(self.mod, "estimate_size", return_value={"ok": True, "bytes": 1, "files": 1}):
+        with patch.object(
+            self.mod, "estimate_size", return_value={"ok": True, "bytes": 1, "files": 1}
+        ):
             with patch("modules.data_transfer.Path.exists", return_value=False):
                 res = self.mod.execute_task(task)
         self.assertFalse(res["ok"])
