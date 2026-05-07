@@ -55,7 +55,9 @@ class ADBManagerRuntimeTests(unittest.TestCase):
 
         got: list[str] = []
         with patch("subprocess.run", side_effect=fake_run):
-            fut = adb.run_async(["shell", "echo", "ok"], callback=lambda r: got.append(r.stdout))
+            fut = adb.run_async(
+                ["shell", "echo", "ok"], callback=lambda r: got.append(r.stdout)
+            )
             res = fut.result(timeout=3)
         self.assertTrue(res.ok)
         self.assertEqual(got, ["ok"])
