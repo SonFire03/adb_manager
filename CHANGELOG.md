@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.5.3] - 2026-05-07
+
 ### Added
 - MIT `LICENSE` and minimal `NOTICE` file.
 - New tests for `core/utils.py` (ConfigManager, HistoryDB, setup_logging paths).

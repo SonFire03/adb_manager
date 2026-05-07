@@ -7,7 +7,7 @@
 
 Desktop console (PySide6) for **local Android operations** via ADB: device health, guided workflows, transfers, troubleshooting evidence, and traceable reporting.
 
-Current stable release: **v2.5.2**
+Current stable release: **v2.5.3**
 
 ## Why It Stands Out
 
