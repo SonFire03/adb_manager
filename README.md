@@ -110,6 +110,7 @@ Only the most demonstrative views are kept here:
 
 - CI pipeline runs on every push/PR: lint/test gates in GitHub Actions.
 - Unit test suite covers core modules and ops modules (notifications, sync, bundle, app-change logic).
+- Local quality commands are standardized via `Makefile` (`make check`, `make coverage`, `make release-check`).
 - Current command:
 
 ```bash
@@ -134,6 +135,7 @@ For deeper release checks and notes format, see `docs/release/RELEASE_NOTES_TEMP
 - Contribution guide: `CONTRIBUTING.md`
 - Security policy: `SECURITY.md`
 - Release notes template: `docs/release/RELEASE_NOTES_TEMPLATE.md`
+- Release preflight script: `scripts/release_check.sh`
 
 ## Roadmap v2.5.1 (Quality Sprint)
 

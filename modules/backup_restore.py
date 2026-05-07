@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from core.adb_manager import ADBManager
@@ -14,7 +14,7 @@ class BackupRestoreModule:
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
     def full_backup(self, serial: str, name: str | None = None) -> CommandResult:
-        stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         output = self.backup_dir / f"{name or 'android_backup'}_{stamp}.ab"
         return self.adb.run(
             ["backup", "-apk", "-shared", "-all", "-f", str(output)],
@@ -25,7 +25,7 @@ class BackupRestoreModule:
     def selective_backup(
         self, serial: str, packages: list[str], name: str | None = None
     ) -> CommandResult:
-        stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         output = self.backup_dir / f"{name or 'android_selective'}_{stamp}.ab"
         cmd = ["backup", "-apk", "-obb", "-f", str(output), *packages]
         return self.adb.run(cmd, serial=serial, timeout=600)

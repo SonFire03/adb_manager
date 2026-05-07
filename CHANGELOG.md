@@ -8,9 +8,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 - `scripts/release_check.sh` helper to run lint, formatting, tests+coverage, and basic release-document checks.
+- `Makefile` targets for standard local workflows: `deps`, `check`, `coverage`, `release-check`.
+- New tests for `core/adb_manager.py` and `core/commands.py` (`tests/test_core_runtime.py`).
 
 ### Changed
 - Replaced deprecated `datetime.utcnow()` usage in modules with timezone-aware UTC timestamps.
+- UTC migration adjusted for Python 3.10 compatibility (`timezone.utc` instead of `datetime.UTC`).
 - Expanded tests for `data_transfer`, `smart_sync`, and `support_bundle` edge paths.
 
 ## [2.5.1] - 2026-05-07
