@@ -196,9 +196,9 @@ class DataTransferModule:
 
     def _parse_du_kb(self, text: str) -> int:
         line = text.splitlines()[0].strip() if text.strip() else ""
-        parts = re.split(r"\s+", line)
-        if not parts:
+        if not line:
             return 0
+        parts = re.split(r"\s+", line)
         try:
             return int(parts[0])
         except ValueError:
@@ -215,4 +215,4 @@ class DataTransferModule:
             if v < 1024 or unit == units[-1]:
                 return f"{v:.1f} {unit}" if unit != "B" else f"{int(v)} {unit}"
             v /= 1024
-        return f"{int(value)} B"
+        return "0 B"  # pragma: no cover

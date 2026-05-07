@@ -25,6 +25,7 @@ coverage:
 core-coverage:
 	$(PYTEST) -q --cov --cov-report=term-missing --cov-fail-under=80
 	coverage report --include="core/*" --fail-under=85
+	coverage report --include="modules/data_transfer.py" --fail-under=90
 
 check: lint fmt-check test
 

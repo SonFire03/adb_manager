@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from core.utils import DeviceInfo
 from modules.data_transfer import DataTransferModule
@@ -22,6 +23,12 @@ class _R:
 class _StubADB:
     def run(self, args, serial=None, timeout=None):  # noqa: ANN001
         cmd = " ".join(args)
+        if "du -sk" in cmd and "/bad" in cmd:
+            return _R(False, "", "du failed", 1)
+        if "push" in cmd and "/sdcard/fail" in cmd:
+            return _R(False, "", "push failed", 1)
+        if "ls -ld" in cmd and "/sdcard/missing" in cmd:
+            return _R(False, "", "not found", 1)
         if "du -sk" in cmd:
             return _R(True, "1024 /sdcard/DCIM\n")
         if "find" in cmd and "wc -l" in cmd:
@@ -110,6 +117,126 @@ class DataTransferTests(unittest.TestCase):
         self.assertGreaterEqual(len(self.mod.preset_sources("DCIM")), 1)
         self.assertEqual(self.mod._parse_du_kb("invalid"), 0)
         self.assertEqual(self.mod._parse_int("files: x"), 0)
+
+    def test_device_estimate_failure_and_parse_helpers(self) -> None:
+        task = self.mod.make_task(
+            serial="ABC",
+            direction="device_to_host",
+            source="/bad",
+            destination="/tmp/out",
+            dry_run=False,
+        )
+        est = self.mod.estimate_size(task)
+        self.assertFalse(est["ok"])
+        self.assertEqual(self.mod._parse_du_kb(""), 0)
+        self.assertEqual(self.mod._fmt_bytes(1536), "1.5 KB")
+
+    def test_execute_host_to_device_missing_source(self) -> None:
+        task = self.mod.make_task(
+            serial="ABC",
+            direction="host_to_device",
+            source="/missing/local/file.txt",
+            destination="/sdcard/Download",
+            dry_run=False,
+        )
+        res = self.mod.execute_task(task)
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["status"], "error")
+
+    def test_execute_host_to_device_push_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "file.txt"
+            src.write_text("demo", encoding="utf-8")
+            task = self.mod.make_task(
+                serial="ABC",
+                direction="host_to_device",
+                source=str(src),
+                destination="/sdcard/fail",
+                dry_run=False,
+            )
+            res = self.mod.execute_task(task)
+            self.assertFalse(res["ok"])
+            self.assertEqual(res["status"], "error")
+
+    def test_execute_device_to_host_partial_when_verify_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            # No file created at destination; verify_local should fail while pull succeeds.
+            task = self.mod.make_task(
+                serial="ABC",
+                direction="device_to_host",
+                source="/sdcard/DCIM",
+                destination=str(Path(tmp) / "missing_target" / "out"),
+                dry_run=False,
+            )
+            res = self.mod.execute_task(task)
+            self.assertFalse(res["ok"])
+            self.assertEqual(res["status"], "partial")
+
+    def test_execute_device_to_host_estimate_error(self) -> None:
+        task = self.mod.make_task(
+            serial="ABC",
+            direction="device_to_host",
+            source="/bad",
+            destination="/tmp/out",
+            dry_run=False,
+        )
+        res = self.mod.execute_task(task)
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["status"], "error")
+
+    def test_verify_remote_and_local_helpers(self) -> None:
+        ok_remote = self.mod._verify_remote_path("ABC", "/sdcard/Download")
+        bad_remote = self.mod._verify_remote_path("ABC", "/sdcard/missing")
+        self.assertTrue(ok_remote["ok"])
+        self.assertFalse(bad_remote["ok"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            p = d / "file.txt"
+            p.write_text("x", encoding="utf-8")
+            self.assertTrue(self.mod._verify_local_path(p)["ok"])
+
+    def test_verify_local_parent_populated_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp) / "dest"
+            parent.mkdir(parents=True)
+            (parent / "seed.txt").write_text("seed", encoding="utf-8")
+            target = parent / "missing_file.txt"
+            res = self.mod._verify_local_path(target)
+            self.assertTrue(res["ok"])
+            self.assertIn("parent populated", res["detail"])
+
+    def test_local_size_directory_and_oserror_skip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "a.txt").write_text("abc", encoding="utf-8")
+            (root / "b.txt").write_text("defg", encoding="utf-8")
+
+            real_stat = Path.stat
+
+            def _stat_with_fault(path_obj: Path):  # noqa: ANN001
+                if path_obj.name == "b.txt":
+                    raise OSError("simulated")
+                return real_stat(path_obj)
+
+            with patch.object(Path, "stat", new=_stat_with_fault):
+                size, files = self.mod._local_size(root)
+            self.assertEqual(files, 1)
+            self.assertEqual(size, 3)
+
+    def test_execute_host_to_device_source_missing_after_estimate(self) -> None:
+        task = self.mod.make_task(
+            serial="ABC",
+            direction="host_to_device",
+            source="/tmp/race.txt",
+            destination="/sdcard/Download",
+            dry_run=False,
+        )
+        with patch.object(self.mod, "estimate_size", return_value={"ok": True, "bytes": 1, "files": 1}):
+            with patch("modules.data_transfer.Path.exists", return_value=False):
+                res = self.mod.execute_task(task)
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["status"], "error")
 
 
 class DeviceHealthTests(unittest.TestCase):

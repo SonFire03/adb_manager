@@ -7,6 +7,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- New `DataTransferModule` tests to cover failure, partial-success, and helper branches.
+
+### Changed
+- CI now enforces a module-specific gate for `modules/data_transfer.py` (minimum 90% coverage).
+- `modules/data_transfer.py` coverage raised to 100% for the v2.5.5 kickoff.
+
+## [2.5.4] - 2026-05-07
+
+### Added
 - `.github/CODEOWNERS` to protect critical paths (`core/*`, `modules/*`, workflows).
 - New `DeviceManager` tests for error notification, listener-fault tolerance, async poll, and Wi-Fi subnet scan paths.
 

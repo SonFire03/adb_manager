@@ -48,3 +48,4 @@ jobs:
         run: |
           pytest -q --cov --cov-report=term-missing --cov-fail-under=80
           coverage report --include="core/*" --fail-under=85
+          coverage report --include="modules/data_transfer.py" --fail-under=90

@@ -35,6 +35,9 @@ echo "==> Tests + Coverage"
 echo "==> Core coverage gate"
 coverage report --include="core/*" --fail-under=85
 
+echo "==> Data transfer coverage gate"
+coverage report --include="modules/data_transfer.py" --fail-under=90
+
 echo "==> Changelog/README sanity"
 grep -q "## \\[Unreleased\\]" CHANGELOG.md
 grep -q "Current stable release:" README.md
