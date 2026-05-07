@@ -37,7 +37,14 @@ class ConfigManager:
 
     def load(self) -> None:
         if self.path.exists():
-            self._data = json.loads(self.path.read_text(encoding="utf-8"))
+            try:
+                self._data = json.loads(self.path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                logging.getLogger(__name__).warning(
+                    "Invalid JSON in config file '%s', using defaults",
+                    self.path,
+                )
+                self._data = {}
         else:
             self._data = {}
 
@@ -128,14 +135,18 @@ def setup_logging(base_dir: Path, config: ConfigManager) -> None:
     max_bytes = int(config.get("logging.max_bytes", 1024 * 1024))
     backup_count = int(config.get("logging.backup_count", 3))
     log_file = base_dir / file_name
+    log_file.parent.mkdir(parents=True, exist_ok=True)
 
     handlers: list[logging.Handler] = [
         RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"),
         logging.StreamHandler(),
     ]
+    root_logger = logging.getLogger()
+    for existing in list(root_logger.handlers):
+        root_logger.removeHandler(existing)
+        existing.close()
     logging.basicConfig(
         level=level,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         handlers=handlers,
     )
-

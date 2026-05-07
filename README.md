@@ -6,7 +6,7 @@
 
 Desktop console (PySide6) for **local Android operations** via ADB: device health, guided workflows, transfers, troubleshooting evidence, and traceable reporting.
 
-Current stable release: **v2.4.0**
+Current stable release: **v2.5.0**
 
 ## Why It Stands Out
 
@@ -101,7 +101,7 @@ Only the most demonstrative views are kept here:
 
 ![Dashboard](screen/screen-v2-01.png)
 ![Data Transfer Center](screen/screen-v2-09.png)
-![Device Health Checks](screen/screen-v2-10.png)
+![Device Health Checks](screen/screen-v2-06.png)
 ![Snapshot Compare](screen/screen-v2-08.png)
 ![Session Reports](screen/screen-v2-07.png)
 
@@ -112,7 +112,7 @@ Only the most demonstrative views are kept here:
 - Current command:
 
 ```bash
-python3 -m unittest discover -s tests -v
+pytest -q
 ```
 
 For deeper release checks and notes format, see `docs/release/RELEASE_NOTES_TEMPLATE.md`.

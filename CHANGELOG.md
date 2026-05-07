@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-05-07
+
 ### Added
 - Workflow Center with guided playbooks and execution history.
 - Support Bundle export (ZIP + manifest + HTML index).
@@ -13,12 +15,18 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Smart Sync module and transfer preview/execution modes.
 - App Change Tracker integrated into Snapshot Compare.
 - New module tests: `tests/test_ops_modules.py`.
+- Test bootstrap file `tests/conftest.py` to ensure local package imports work in `pytest`.
+- Regression tests for invalid JSON config fallback and profile upsert by serial.
 
 ### Changed
 - README updated for v2.4 guided ops feature set.
 - README rewritten for v2.5-quality product narrative (quick workflows, signature features, reduced visual density).
 - Added `docs/quick-demo.md` for a fast product walkthrough.
 - Release notes template refined for cleaner release readiness.
+- `ConfigManager` now handles corrupted JSON settings safely (fallback defaults instead of crash).
+- `setup_logging` now recreates parent log directory and resets previous handlers to avoid duplicate logs.
+- `DeviceProfilesModule.save_profile()` now upserts by `serial` when no `profile_id` is provided.
+- README stable version bumped to `v2.5.0`, fixed broken screenshot reference, and test command switched to `pytest`.
 
 ## [2.3.0] - 2026-04-28
 

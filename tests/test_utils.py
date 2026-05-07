@@ -19,6 +19,13 @@ class ConfigManagerTests(unittest.TestCase):
             cfg2 = ConfigManager(path)
             self.assertEqual(cfg2.get("app.theme"), "dark")
 
+    def test_invalid_json_fallbacks_to_empty_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "settings.json"
+            path.write_text("{invalid", encoding="utf-8")
+            cfg = ConfigManager(path)
+            self.assertEqual(cfg.get("app.theme", "light"), "light")
+
 
 class SafeModeTests(unittest.TestCase):
     def test_blocks_dangerous_command(self) -> None:
@@ -36,4 +43,3 @@ class SafeModeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

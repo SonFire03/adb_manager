@@ -66,6 +66,11 @@ class DeviceProfilesModule:
         profile.last_seen = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if not profile.profile_id:
             profile.profile_id = uuid4().hex[:10]
+            # If no explicit id is provided, keep one profile per serial.
+            for p in current:
+                if p.serial == profile.serial:
+                    profile.profile_id = p.profile_id
+                    break
 
         updated: list[DeviceProfile] = []
         replaced = False
