@@ -1,0 +1,15 @@
+[run]
+source =
+    core
+    modules
+omit =
+    core/init.py
+    modules/app_manager.py
+    modules/device_inspector.py
+    modules/health_check.py
+    modules/system_info.py
+    modules/snapshot_compare.py
+
+[report]
+show_missing = True
+skip_covered = False

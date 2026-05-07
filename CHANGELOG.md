@@ -9,6 +9,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Added
 - `.gitignore` now ignores `*.log.*` and `config/notifications.db` local runtime artifacts.
 - README now includes a measurable `v2.5.1` Quality Sprint roadmap (CI gates, coverage, reliability, docs, release checks).
+- Coverage configuration file `.coveragerc` for unit-test scope on `core/` and `modules/`.
+- New infrastructure-oriented test suite `tests/test_infra_modules.py` (device manager, plugin manager, automation, file manager, backup/restore).
+
+### Changed
+- CI now installs `pytest-cov` and enforces `pytest --cov --cov-fail-under=80`.
 
 ## [2.5.0] - 2026-05-07
 
