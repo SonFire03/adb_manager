@@ -7,6 +7,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- New `SmartSyncModule` tests for decision/scan/execute branches.
+
+### Changed
+- CI now enforces a module-specific gate for `modules/smart_sync.py` (minimum 90% coverage).
+- Added a fast smoke CI job on Python 3.12 for quick PR feedback.
+
+## [2.5.5] - 2026-05-07
+
+### Added
 - New `DataTransferModule` tests to cover failure, partial-success, and helper branches.
 
 ### Changed

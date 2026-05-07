@@ -22,8 +22,14 @@ class _StubADB:
                 self.stdout = stdout
                 self.stderr = stderr
 
+        if "find" in cmd and "/bad" in cmd:
+            return R(False, "", "remote find failed")
         if "find" in cmd and "stat -c" in cmd:
             return R(True, "10|100|/sdcard/src/a.txt\n")
+        if "push" in cmd and "failpush" in cmd:
+            return R(False, "", "push failed")
+        if "pull" in cmd and "failpull" in cmd:
+            return R(False, "", "pull failed")
         if "pull" in cmd or "push" in cmd:
             return R(True, "ok")
         return R(True, "")
@@ -111,6 +117,135 @@ class SmartSyncTests(unittest.TestCase):
             )
             self.assertTrue(p2["ok"])
             self.assertIn("items", p2)
+
+    def test_preview_modes_and_remote_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "src"
+            src.mkdir(parents=True)
+            (src / "a.txt").write_text("hello", encoding="utf-8")
+            mod = SmartSyncModule(_StubADB())  # type: ignore[arg-type]
+
+            p_update = mod.preview(
+                serial="ABC",
+                direction="host_to_device",
+                source=str(src),
+                destination="/sdcard/dst",
+                mode="update_newer_only",
+            )
+            self.assertTrue(p_update["ok"])
+            self.assertIn("summary", p_update)
+
+            p_mirror = mod.preview(
+                serial="ABC",
+                direction="host_to_device",
+                source=str(src),
+                destination="/sdcard/dst",
+                mode="mirror_selected",
+            )
+            self.assertTrue(p_mirror["ok"])
+
+            p_remote_fail = mod.preview(
+                serial="ABC",
+                direction="device_to_host",
+                source="/bad",
+                destination=str(src),
+                mode="copy_missing_only",
+            )
+            self.assertFalse(p_remote_fail["ok"])
+
+    def test_execute_collects_errors(self) -> None:
+        mod = SmartSyncModule(_StubADB())  # type: ignore[arg-type]
+        preview = {
+            "ok": True,
+            "direction": "host_to_device",
+            "items": [
+                {
+                    "decision": "copy",
+                    "source": "/tmp/a.txt",
+                    "destination": "/sdcard/failpush.txt",
+                },
+                {
+                    "decision": "update",
+                    "source": "/tmp/b.txt",
+                    "destination": "/sdcard/failpush2.txt",
+                },
+            ],
+        }
+        out = mod.execute(serial="ABC", preview=preview)
+        self.assertFalse(out["ok"])
+        self.assertGreaterEqual(len(out["errors"]), 1)
+
+    def test_execute_device_to_host_error_branch(self) -> None:
+        mod = SmartSyncModule(_StubADB())  # type: ignore[arg-type]
+        preview = {
+            "ok": True,
+            "direction": "device_to_host",
+            "items": [
+                {
+                    "decision": "copy",
+                    "source": "/sdcard/failpull.txt",
+                    "destination": "/tmp/failpull.txt",
+                }
+            ],
+        }
+        out = mod.execute(serial="ABC", preview=preview)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["executed"], 0)
+
+    def test_decide_and_scan_edge_cases(self) -> None:
+        mod = SmartSyncModule(_StubADB())  # type: ignore[arg-type]
+
+        # both missing -> no item
+        self.assertIsNone(
+            mod._decide(
+                rel="x",
+                src=None,
+                dst=None,
+                mode="copy_missing_only",
+                direction="host_to_device",
+                source_root="/src",
+                dest_root="/dst",
+            )
+        )
+
+        # update path in update_newer_only
+        item = mod._decide(
+            rel="x",
+            src={"size": 2, "mtime": 200},
+            dst={"size": 1, "mtime": 100},
+            mode="update_newer_only",
+            direction="host_to_device",
+            source_root="/src",
+            dest_root="/dst",
+        )
+        assert item is not None
+        self.assertEqual(item.decision, "update")
+
+        # conflict path in skip_duplicates
+        item2 = mod._decide(
+            rel="x",
+            src={"size": 2, "mtime": 200},
+            dst={"size": 1, "mtime": 100},
+            mode="skip_duplicates",
+            direction="host_to_device",
+            source_root="/src",
+            dest_root="/dst",
+        )
+        assert item2 is not None
+        self.assertEqual(item2.decision, "conflict")
+
+        # scan local failure
+        scan_local = mod._scan_local("/definitely/missing")
+        self.assertFalse(scan_local["ok"])
+
+        # scan dispatch remote failure path
+        scan_remote = mod._scan(
+            serial="ABC",
+            direction="device_to_host",
+            root="/bad",
+            side="src",
+        )
+        self.assertFalse(scan_remote["ok"])
 
 
 class SupportBundleTests(unittest.TestCase):
