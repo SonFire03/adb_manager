@@ -141,7 +141,7 @@ For deeper release checks and notes format, see `docs/release/RELEASE_NOTES_TEMP
 - Coverage target: reach >= 80% on `core/` and `modules/` with `pytest-cov`.
 - Reliability: add unit tests for config/logging edge-cases and flaky ADB parsing paths.
 - Docs quality: add `docs/operations-playbook.md` with reproducible runbooks for health/sync/bundle workflows. ✅
-- Release hygiene: add `scripts/release_check.sh` to validate tests, changelog, and version consistency before tagging.
+- Release hygiene: add `scripts/release_check.sh` to validate tests, changelog, and version consistency before tagging. ✅
 
 ## Licence
 

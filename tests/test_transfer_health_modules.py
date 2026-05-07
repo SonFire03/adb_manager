@@ -93,6 +93,24 @@ class DataTransferTests(unittest.TestCase):
             self.assertTrue(res["ok"])
             self.assertEqual(res["status"], "success")
 
+    def test_estimate_host_source_missing(self) -> None:
+        task = self.mod.make_task(
+            serial="ABC",
+            direction="host_to_device",
+            source="/definitely/missing/path",
+            destination="/sdcard/Download",
+            dry_run=False,
+        )
+        est = self.mod.estimate_size(task)
+        self.assertFalse(est["ok"])
+
+    def test_preset_sources_and_helpers(self) -> None:
+        self.assertEqual(self.mod.preset_sources("Custom folders"), [])
+        self.assertEqual(self.mod.preset_sources("Export APK only"), [])
+        self.assertGreaterEqual(len(self.mod.preset_sources("DCIM")), 1)
+        self.assertEqual(self.mod._parse_du_kb("invalid"), 0)
+        self.assertEqual(self.mod._parse_int("files: x"), 0)
+
 
 class DeviceHealthTests(unittest.TestCase):
     def test_device_health_report_shape(self) -> None:

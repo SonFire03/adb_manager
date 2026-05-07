@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from core.adb_manager import ADBManager
@@ -31,7 +31,7 @@ class AutomationModule:
     def save_script(self, name: str, steps: list[str]) -> None:
         scripts = self.list_scripts()
         scripts.append(
-            {"name": name, "steps": steps, "created_at": datetime.utcnow().isoformat()}
+            {"name": name, "steps": steps, "created_at": datetime.now(UTC).isoformat()}
         )
         self.script_library.write_text(
             json.dumps(scripts, indent=2, ensure_ascii=False), encoding="utf-8"

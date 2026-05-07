@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from modules.app_change_tracker import AppChangeTrackerModule
@@ -89,6 +90,28 @@ class SmartSyncTests(unittest.TestCase):
             result = mod.execute(serial="ABC", preview=preview)
             self.assertTrue(result["ok"])
 
+    def test_execute_invalid_preview_and_modes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "src"
+            dst = Path(tmp) / "dst"
+            src.mkdir(parents=True)
+            dst.mkdir(parents=True)
+            (src / "a.txt").write_text("hello", encoding="utf-8")
+            mod = SmartSyncModule(_StubADB())  # type: ignore[arg-type]
+
+            bad = mod.execute(serial="ABC", preview={"ok": False})
+            self.assertFalse(bad["ok"])
+
+            p2 = mod.preview(
+                serial="ABC",
+                direction="host_to_device",
+                source=str(src),
+                destination="/sdcard/dst",
+                mode="skip_duplicates",
+            )
+            self.assertTrue(p2["ok"])
+            self.assertIn("items", p2)
+
 
 class SupportBundleTests(unittest.TestCase):
     def test_bundle_creation(self) -> None:
@@ -107,6 +130,30 @@ class SupportBundleTests(unittest.TestCase):
             )
             self.assertTrue(out["ok"])
             self.assertTrue(Path(out["zip_file"]).exists())
+
+    def test_bundle_with_logs_and_captures(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            cap = base / "cap.txt"
+            log = base / "log.txt"
+            cap.write_text("capture", encoding="utf-8")
+            log.write_text("log", encoding="utf-8")
+
+            mod = SupportBundleModule(base)
+            out = mod.create_bundle(
+                bundle_name="bundle2",
+                serial="XYZ",
+                include={"captures": True, "logs": True},
+                data={"captures": [str(cap)], "logs": [str(log)]},
+                output_dir=base / "reports",
+            )
+            self.assertTrue(out["ok"])
+            zpath = Path(out["zip_file"])
+            with zipfile.ZipFile(zpath, "r") as zf:
+                names = set(zf.namelist())
+                self.assertIn("captures/cap.txt", names)
+                self.assertIn("logs/log.txt", names)
+                self.assertIn("manifest.json", names)
 
 
 class WorkflowCenterTests(unittest.TestCase):

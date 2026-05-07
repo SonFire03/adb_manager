@@ -6,6 +6,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Added
+- `scripts/release_check.sh` helper to run lint, formatting, tests+coverage, and basic release-document checks.
+
+### Changed
+- Replaced deprecated `datetime.utcnow()` usage in modules with timezone-aware UTC timestamps.
+- Expanded tests for `data_transfer`, `smart_sync`, and `support_bundle` edge paths.
+
 ## [2.5.1] - 2026-05-07
 
 ### Added
