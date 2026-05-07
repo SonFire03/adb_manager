@@ -137,7 +137,9 @@ class DeviceManagerTests(unittest.TestCase):
             def close(self) -> None:
                 return None
 
-        with patch("socket.socket", side_effect=lambda *a, **k: _Sock()):  # noqa: ARG005
+        with patch(
+            "socket.socket", side_effect=lambda *a, **k: _Sock()
+        ):  # noqa: ARG005
             found = mod.scan_for_wifi("192.168.1.")
         self.assertIn("192.168.1.2", found)
 
