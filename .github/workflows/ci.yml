@@ -7,7 +7,7 @@ on:
     branches: ["main"]
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -26,6 +26,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest ruff black
 
       - name: Compile check
         run: |
@@ -34,5 +35,11 @@ jobs:
           python -m py_compile modules/app_manager.py modules/system_info.py modules/automation.py modules/backup_restore.py modules/device_inspector.py modules/device_profiles.py modules/health_check.py modules/session_audit.py modules/snapshot_compare.py
           python -m py_compile gui/main_window.py gui/styles.py gui/widgets/code_editor.py gui/widgets/terminal_widget.py gui/widgets/toast.py
 
-      - name: Unit tests
-        run: python -m unittest discover -s tests -v
+      - name: Ruff (lint)
+        run: ruff check .
+
+      - name: Black (format check)
+        run: black --check .
+
+      - name: Pytest
+        run: pytest -q
