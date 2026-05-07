@@ -6,6 +6,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Added
+- `.gitignore` now ignores `*.log.*` and `config/notifications.db` local runtime artifacts.
+- README now includes a measurable `v2.5.1` Quality Sprint roadmap (CI gates, coverage, reliability, docs, release checks).
+
 ## [2.5.0] - 2026-05-07
 
 ### Added

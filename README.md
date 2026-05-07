@@ -134,11 +134,13 @@ For deeper release checks and notes format, see `docs/release/RELEASE_NOTES_TEMP
 - Security policy: `SECURITY.md`
 - Release notes template: `docs/release/RELEASE_NOTES_TEMPLATE.md`
 
-## Roadmap (next)
+## Roadmap v2.5.1 (Quality Sprint)
 
-- enrichir les comparaisons snapshots (granularité process/service),
-- packaging release desktop (AppImage/Windows/macOS),
-- améliorer la doc opératoire et les quick playbooks.
+- CI quality gate: add `ruff` + `black --check` + `pytest` in one mandatory workflow.
+- Coverage target: reach >= 80% on `core/` and `modules/` with `pytest-cov`.
+- Reliability: add unit tests for config/logging edge-cases and flaky ADB parsing paths.
+- Docs quality: add `docs/operations-playbook.md` with reproducible runbooks for health/sync/bundle workflows.
+- Release hygiene: add `scripts/release_check.sh` to validate tests, changelog, and version consistency before tagging.
 
 ## Licence
 

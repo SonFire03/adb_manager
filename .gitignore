@@ -2,7 +2,9 @@ __pycache__/
 *.py[cod]
 .venv/
 *.log
+*.log.*
 config/history.db
+config/notifications.db
 backups/
 captures/
 .codex
