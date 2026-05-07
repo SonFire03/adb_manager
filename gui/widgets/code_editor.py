@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtGui import QColor, QTextCharFormat, QTextDocument
+from PySide6.QtGui import QColor, QTextCharFormat
 from PySide6.QtWidgets import QPlainTextEdit
 
 
@@ -14,7 +14,6 @@ class ScriptEditor(QPlainTextEdit):
 
     def highlight_keywords(self) -> None:
         # Minimal highlighter pass; can be replaced by QSyntaxHighlighter if needed.
-        doc: QTextDocument = self.document()
         cursor = self.textCursor()
         cursor.beginEditBlock()
         default = QTextCharFormat()
@@ -36,4 +35,3 @@ class ScriptEditor(QPlainTextEdit):
                 cursor.setCharFormat(fmt)
                 start = idx + len(keyword)
         cursor.endEditBlock()
-
