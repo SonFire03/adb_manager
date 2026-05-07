@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.5.2] - 2026-05-07
+
 ### Added
 - `scripts/release_check.sh` helper to run lint, formatting, tests+coverage, and basic release-document checks.
 - `Makefile` targets for standard local workflows: `deps`, `check`, `coverage`, `release-check`.
