@@ -30,8 +30,12 @@ class AutomationModule:
 
     def save_script(self, name: str, steps: list[str]) -> None:
         scripts = self.list_scripts()
-        scripts.append({"name": name, "steps": steps, "created_at": datetime.utcnow().isoformat()})
-        self.script_library.write_text(json.dumps(scripts, indent=2, ensure_ascii=False), encoding="utf-8")
+        scripts.append(
+            {"name": name, "steps": steps, "created_at": datetime.utcnow().isoformat()}
+        )
+        self.script_library.write_text(
+            json.dumps(scripts, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     def run_script(self, serial: str, steps: list[str]) -> list[tuple[str, bool, str]]:
         results: list[tuple[str, bool, str]] = []
@@ -42,4 +46,3 @@ class AutomationModule:
             if not res.ok:
                 break
         return results
-

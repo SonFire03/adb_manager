@@ -144,7 +144,12 @@ class SnapshotCompareTests(unittest.TestCase):
                 "serial": "A",
                 "packages_user": ["com.a", "com.b"],
                 "inspector": {"storage_available": "10.0 GB"},
-                "device": {"transport": "usb", "state": "device", "root": False, "debug": "enabled"},
+                "device": {
+                    "transport": "usb",
+                    "state": "device",
+                    "root": False,
+                    "debug": "enabled",
+                },
                 "system_properties": {"ro.product.model": "Pixel"},
                 "monitor": {"cpu_total": 10.0, "mem_available_kb": 1000},
             }
@@ -153,7 +158,12 @@ class SnapshotCompareTests(unittest.TestCase):
                 "serial": "A",
                 "packages_user": ["com.b", "com.c"],
                 "inspector": {"storage_available": "8.0 GB"},
-                "device": {"transport": "wifi", "state": "device", "root": False, "debug": "enabled"},
+                "device": {
+                    "transport": "wifi",
+                    "state": "device",
+                    "root": False,
+                    "debug": "enabled",
+                },
                 "system_properties": {"ro.product.model": "Pixel 2"},
                 "monitor": {"cpu_total": 12.5, "mem_available_kb": 800},
             }

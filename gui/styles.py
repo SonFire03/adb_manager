@@ -12,7 +12,9 @@ def _hex_to_rgb(color: str) -> tuple[int, int, int]:
 
 def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     r, g, b = rgb
-    return f"#{max(0, min(255, r)):02x}{max(0, min(255, g)):02x}{max(0, min(255, b)):02x}"
+    return (
+        f"#{max(0, min(255, r)):02x}{max(0, min(255, g)):02x}{max(0, min(255, b)):02x}"
+    )
 
 
 def _mix(color: str, target: str, ratio: float) -> str:

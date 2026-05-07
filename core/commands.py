@@ -8,6 +8,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass(frozen=True, slots=True)
 class ADBCommandTemplate:
     name: str
@@ -20,39 +21,97 @@ class ADBCommandTemplate:
 
 DEFAULT_COMMAND_CATALOG: dict[str, list[ADBCommandTemplate]] = {
     "devices": [
-        ADBCommandTemplate("Liste appareils", "devices -l", "Detecte les appareils connectes", "devices"),
-        ADBCommandTemplate("Reboot system", "reboot", "Redemarre l'appareil", "devices"),
-        ADBCommandTemplate("Reboot bootloader", "reboot bootloader", "Redemarre en bootloader", "devices"),
+        ADBCommandTemplate(
+            "Liste appareils",
+            "devices -l",
+            "Detecte les appareils connectes",
+            "devices",
+        ),
+        ADBCommandTemplate(
+            "Reboot system", "reboot", "Redemarre l'appareil", "devices"
+        ),
+        ADBCommandTemplate(
+            "Reboot bootloader",
+            "reboot bootloader",
+            "Redemarre en bootloader",
+            "devices",
+        ),
     ],
     "files": [
-        ADBCommandTemplate("Lister /sdcard", "shell ls -la /sdcard", "Liste les fichiers du stockage", "files"),
-        ADBCommandTemplate("Permissions", "shell stat /sdcard", "Affiche les permissions", "files"),
+        ADBCommandTemplate(
+            "Lister /sdcard",
+            "shell ls -la /sdcard",
+            "Liste les fichiers du stockage",
+            "files",
+        ),
+        ADBCommandTemplate(
+            "Permissions", "shell stat /sdcard", "Affiche les permissions", "files"
+        ),
     ],
     "apps": [
-        ADBCommandTemplate("Packages utilisateur", "shell pm list packages -3", "Liste apps utilisateur", "apps"),
-        ADBCommandTemplate("Packages systeme", "shell pm list packages -s", "Liste apps systeme", "apps"),
-        ADBCommandTemplate("Top activite", "shell dumpsys activity top", "Etat activite au premier plan", "apps"),
+        ADBCommandTemplate(
+            "Packages utilisateur",
+            "shell pm list packages -3",
+            "Liste apps utilisateur",
+            "apps",
+        ),
+        ADBCommandTemplate(
+            "Packages systeme",
+            "shell pm list packages -s",
+            "Liste apps systeme",
+            "apps",
+        ),
+        ADBCommandTemplate(
+            "Top activite",
+            "shell dumpsys activity top",
+            "Etat activite au premier plan",
+            "apps",
+        ),
     ],
     "system": [
-        ADBCommandTemplate("Prop build", "shell getprop", "Informations systeme Android", "system"),
-        ADBCommandTemplate("Batterie", "shell dumpsys battery", "Etat batterie", "system"),
-        ADBCommandTemplate("CPU", "shell top -n 1 -b", "Snapshot process CPU", "system"),
+        ADBCommandTemplate(
+            "Prop build", "shell getprop", "Informations systeme Android", "system"
+        ),
+        ADBCommandTemplate(
+            "Batterie", "shell dumpsys battery", "Etat batterie", "system"
+        ),
+        ADBCommandTemplate(
+            "CPU", "shell top -n 1 -b", "Snapshot process CPU", "system"
+        ),
     ],
     "network": [
-        ADBCommandTemplate("IP locale", "shell ip route", "Affiche route reseau", "network"),
-        ADBCommandTemplate("WiFi status", "shell dumpsys wifi", "Etat du WiFi", "network"),
+        ADBCommandTemplate(
+            "IP locale", "shell ip route", "Affiche route reseau", "network"
+        ),
+        ADBCommandTemplate(
+            "WiFi status", "shell dumpsys wifi", "Etat du WiFi", "network"
+        ),
     ],
     "security": [
         ADBCommandTemplate("SELinux", "shell getenforce", "Etat SELinux", "security"),
-        ADBCommandTemplate("Root check", "shell su -c id", "Teste l'acces root", "security"),
+        ADBCommandTemplate(
+            "Root check", "shell su -c id", "Teste l'acces root", "security"
+        ),
     ],
     "development": [
         ADBCommandTemplate("Logcat", "logcat -d", "Recupere les logs", "development"),
-        ADBCommandTemplate("Bugreport", "bugreport", "Genere un rapport systeme", "development"),
+        ADBCommandTemplate(
+            "Bugreport", "bugreport", "Genere un rapport systeme", "development"
+        ),
     ],
     "automation": [
-        ADBCommandTemplate("Wakeup", "shell input keyevent KEYCODE_WAKEUP", "Reveille l'appareil", "automation"),
-        ADBCommandTemplate("Unlock swipe", "shell input swipe 300 1000 300 500", "Swipe de deblocage", "automation"),
+        ADBCommandTemplate(
+            "Wakeup",
+            "shell input keyevent KEYCODE_WAKEUP",
+            "Reveille l'appareil",
+            "automation",
+        ),
+        ADBCommandTemplate(
+            "Unlock swipe",
+            "shell input swipe 300 1000 300 500",
+            "Swipe de deblocage",
+            "automation",
+        ),
     ],
 }
 
@@ -69,7 +128,11 @@ DEFAULT_CATEGORY_TO_TEXT_CATEGORY = {
 
 
 def _normalize_category_key(category: str) -> str:
-    simplified = unicodedata.normalize("NFKD", category).encode("ascii", "ignore").decode("ascii")
+    simplified = (
+        unicodedata.normalize("NFKD", category)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
     simplified = simplified.strip().lower()
     simplified = re.sub(r"[^a-z0-9]+", "_", simplified).strip("_")
     return simplified or "misc"
@@ -122,7 +185,9 @@ def _auto_description(command: str, category: str) -> str:
     if text.startswith("pull "):
         return "Recupere un fichier depuis l'appareil vers le poste local."
     if "pm list packages" in text:
-        return "Affiche les packages Android installes selon les filtres de la commande."
+        return (
+            "Affiche les packages Android installes selon les filtres de la commande."
+        )
     if text.startswith("install"):
         return "Installe un APK sur l'appareil Android cible."
     if "uninstall" in text:
@@ -189,9 +254,15 @@ def _load_external_commands(path: Path) -> dict[str, list[ADBCommandTemplate]]:
         line = raw_line.strip()
         if not line or line.startswith("---") or line.startswith("==="):
             continue
-        if line.startswith("TOTAL:") or line.startswith("CATÉGORIES:") or line.startswith("LÉGENDE"):
+        if (
+            line.startswith("TOTAL:")
+            or line.startswith("CATÉGORIES:")
+            or line.startswith("LÉGENDE")
+        ):
             continue
-        if line.lower().startswith("adb commandes compl") or line.lower().startswith("format:"):
+        if line.lower().startswith("adb commandes compl") or line.lower().startswith(
+            "format:"
+        ):
             continue
         parsed = _parse_reference_line(line)
         if parsed is None:
@@ -230,8 +301,12 @@ def _merge_entries(
         known.add(entry.command)
 
 
-def load_command_catalog(external_file: Path | None = None) -> dict[str, list[ADBCommandTemplate]]:
-    src = external_file or (Path(__file__).resolve().parents[1] / "adb_commands_complete.txt")
+def load_command_catalog(
+    external_file: Path | None = None,
+) -> dict[str, list[ADBCommandTemplate]]:
+    src = external_file or (
+        Path(__file__).resolve().parents[1] / "adb_commands_complete.txt"
+    )
     external = _load_external_commands(src)
     if external:
         merged: dict[str, list[ADBCommandTemplate]] = {
@@ -252,7 +327,9 @@ def load_command_catalog(external_file: Path | None = None) -> dict[str, list[AD
                 for e in entries
             ]
             _merge_entries(merged, label, remapped)
-        logger.info("Loaded %s external ADB command categories from %s", len(external), src.name)
+        logger.info(
+            "Loaded %s external ADB command categories from %s", len(external), src.name
+        )
         return merged
 
     # No external file: expose internal defaults with FR category labels.

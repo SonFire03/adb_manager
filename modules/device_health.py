@@ -29,7 +29,9 @@ class DeviceHealthModule:
         sections = self._section_summary(findings)
 
         return {
-            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "generated_at": datetime.now(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
             "serial": serial,
             "score": score,
             "status": status,
@@ -42,7 +44,16 @@ class DeviceHealthModule:
         out: list[dict[str, Any]] = []
         res = self.adb.run(["shell", "dumpsys", "battery"], serial=serial, timeout=12)
         if not res.ok:
-            return [self._finding("battery", "Battery data unavailable", "medium", "unsupported", res.stderr, "Verifier acces dumpsys battery")]
+            return [
+                self._finding(
+                    "battery",
+                    "Battery data unavailable",
+                    "medium",
+                    "unsupported",
+                    res.stderr,
+                    "Verifier acces dumpsys battery",
+                )
+            ]
 
         level = self._int_match(r"level:\s*(\d+)", res.stdout)
         scale = self._int_match(r"scale:\s*(\d+)", res.stdout) or 100
@@ -54,9 +65,28 @@ class DeviceHealthModule:
         if pct >= 0:
             sev = "high" if pct < 10 else ("medium" if pct < 20 else "low")
             st = "fail" if pct < 10 else ("warn" if pct < 20 else "pass")
-            out.append(self._finding("battery", "Battery level", sev, st, f"{pct}%", "Recharger l'appareil si niveau faible", pct))
+            out.append(
+                self._finding(
+                    "battery",
+                    "Battery level",
+                    sev,
+                    st,
+                    f"{pct}%",
+                    "Recharger l'appareil si niveau faible",
+                    pct,
+                )
+            )
         else:
-            out.append(self._finding("battery", "Battery level", "low", "unsupported", "not available", "Verifier support dumpsys battery"))
+            out.append(
+                self._finding(
+                    "battery",
+                    "Battery level",
+                    "low",
+                    "unsupported",
+                    "not available",
+                    "Verifier support dumpsys battery",
+                )
+            )
 
         charge_state = {
             2: "charging",
@@ -64,26 +94,65 @@ class DeviceHealthModule:
             4: "not_charging",
             5: "full",
         }.get(status, "unknown")
-        out.append(self._finding("battery", "Charging state", "info", "pass", charge_state, ""))
+        out.append(
+            self._finding("battery", "Charging state", "info", "pass", charge_state, "")
+        )
 
         if temp_tenths >= 0:
             temp_c = temp_tenths / 10.0
             sev = "high" if temp_c >= 45 else ("medium" if temp_c >= 40 else "low")
             st = "fail" if temp_c >= 45 else ("warn" if temp_c >= 40 else "pass")
-            out.append(self._finding("battery", "Battery temperature", sev, st, f"{temp_c:.1f}C", "Laisser refroidir l'appareil si temperature elevee", temp_c))
+            out.append(
+                self._finding(
+                    "battery",
+                    "Battery temperature",
+                    sev,
+                    st,
+                    f"{temp_c:.1f}C",
+                    "Laisser refroidir l'appareil si temperature elevee",
+                    temp_c,
+                )
+            )
 
         if health is not None:
-            out.append(self._finding("battery", "Battery health(raw)", "info", "pass", f"health={health}", ""))
+            out.append(
+                self._finding(
+                    "battery",
+                    "Battery health(raw)",
+                    "info",
+                    "pass",
+                    f"health={health}",
+                    "",
+                )
+            )
 
         return out
 
     def _storage_checks(self, serial: str) -> list[dict[str, Any]]:
         res = self.adb.run(["shell", "df", "-k", "/data"], serial=serial, timeout=10)
         if not res.ok:
-            return [self._finding("storage", "Storage data unavailable", "medium", "unsupported", res.stderr, "Verifier acces au /data")]
+            return [
+                self._finding(
+                    "storage",
+                    "Storage data unavailable",
+                    "medium",
+                    "unsupported",
+                    res.stderr,
+                    "Verifier acces au /data",
+                )
+            ]
         total_kb, avail_kb = self._parse_df_kb(res.stdout)
         if total_kb <= 0:
-            return [self._finding("storage", "Storage parse failed", "low", "unsupported", res.stdout[:120], "Verifier format df")]
+            return [
+                self._finding(
+                    "storage",
+                    "Storage parse failed",
+                    "low",
+                    "unsupported",
+                    res.stdout[:120],
+                    "Verifier format df",
+                )
+            ]
         used_pct = int(((total_kb - avail_kb) * 100) / total_kb)
         sev = "high" if used_pct >= 95 else ("medium" if used_pct >= 85 else "low")
         st = "fail" if used_pct >= 95 else ("warn" if used_pct >= 85 else "pass")
@@ -107,11 +176,39 @@ class DeviceHealthModule:
             if total >= 0:
                 sev = "high" if total >= 90 else ("medium" if total >= 75 else "low")
                 st = "fail" if total >= 90 else ("warn" if total >= 75 else "pass")
-                out.append(self._finding("cpu_memory", "CPU load", sev, st, f"cpu_total={total:.1f}%", "Fermer apps lourdes si charge persistante", total))
+                out.append(
+                    self._finding(
+                        "cpu_memory",
+                        "CPU load",
+                        sev,
+                        st,
+                        f"cpu_total={total:.1f}%",
+                        "Fermer apps lourdes si charge persistante",
+                        total,
+                    )
+                )
             else:
-                out.append(self._finding("cpu_memory", "CPU load", "low", "unsupported", "TOTAL not found", ""))
+                out.append(
+                    self._finding(
+                        "cpu_memory",
+                        "CPU load",
+                        "low",
+                        "unsupported",
+                        "TOTAL not found",
+                        "",
+                    )
+                )
         else:
-            out.append(self._finding("cpu_memory", "CPU load", "medium", "unsupported", cpu.stderr, "Verifier dumpsys cpuinfo"))
+            out.append(
+                self._finding(
+                    "cpu_memory",
+                    "CPU load",
+                    "medium",
+                    "unsupported",
+                    cpu.stderr,
+                    "Verifier dumpsys cpuinfo",
+                )
+            )
 
         mem = self.adb.run(["shell", "cat", "/proc/meminfo"], serial=serial, timeout=8)
         if mem.ok:
@@ -119,66 +216,232 @@ class DeviceHealthModule:
             avail_kb = self._int_match(r"MemAvailable:\s*(\d+)\s*kB", mem.stdout)
             if total_kb > 0 and avail_kb >= 0:
                 avail_pct = int(avail_kb * 100 / total_kb)
-                sev = "high" if avail_pct < 5 else ("medium" if avail_pct < 12 else "low")
+                sev = (
+                    "high" if avail_pct < 5 else ("medium" if avail_pct < 12 else "low")
+                )
                 st = "fail" if avail_pct < 5 else ("warn" if avail_pct < 12 else "pass")
-                out.append(self._finding("cpu_memory", "Memory availability", sev, st, f"available={avail_pct}%", "Reduire charge memoire/apps en arriere-plan", avail_pct))
+                out.append(
+                    self._finding(
+                        "cpu_memory",
+                        "Memory availability",
+                        sev,
+                        st,
+                        f"available={avail_pct}%",
+                        "Reduire charge memoire/apps en arriere-plan",
+                        avail_pct,
+                    )
+                )
             else:
-                out.append(self._finding("cpu_memory", "Memory availability", "low", "unsupported", "MemAvailable parse failed", ""))
+                out.append(
+                    self._finding(
+                        "cpu_memory",
+                        "Memory availability",
+                        "low",
+                        "unsupported",
+                        "MemAvailable parse failed",
+                        "",
+                    )
+                )
         else:
-            out.append(self._finding("cpu_memory", "Memory availability", "medium", "unsupported", mem.stderr, "Verifier acces /proc/meminfo"))
+            out.append(
+                self._finding(
+                    "cpu_memory",
+                    "Memory availability",
+                    "medium",
+                    "unsupported",
+                    mem.stderr,
+                    "Verifier acces /proc/meminfo",
+                )
+            )
 
         return out
 
     def _thermal_checks(self, serial: str) -> list[dict[str, Any]]:
-        res = self.adb.run(["shell", "dumpsys", "thermalservice"], serial=serial, timeout=12)
+        res = self.adb.run(
+            ["shell", "dumpsys", "thermalservice"], serial=serial, timeout=12
+        )
         if not res.ok:
-            return [self._finding("thermal", "Thermal service", "low", "unsupported", res.stderr, "Certains appareils limitent cette API")]
-        temps = [float(x) for x in re.findall(r"(?:temp|temperature)[^\n]*?(-?\d+(?:\.\d+)?)", res.stdout, flags=re.IGNORECASE)]
+            return [
+                self._finding(
+                    "thermal",
+                    "Thermal service",
+                    "low",
+                    "unsupported",
+                    res.stderr,
+                    "Certains appareils limitent cette API",
+                )
+            ]
+        temps = [
+            float(x)
+            for x in re.findall(
+                r"(?:temp|temperature)[^\n]*?(-?\d+(?:\.\d+)?)",
+                res.stdout,
+                flags=re.IGNORECASE,
+            )
+        ]
         if not temps:
-            return [self._finding("thermal", "Thermal service", "low", "unsupported", "No temperature tokens found", "API thermique non exposee par cet appareil")]
+            return [
+                self._finding(
+                    "thermal",
+                    "Thermal service",
+                    "low",
+                    "unsupported",
+                    "No temperature tokens found",
+                    "API thermique non exposee par cet appareil",
+                )
+            ]
         max_temp = max(temps)
         sev = "high" if max_temp >= 50 else ("medium" if max_temp >= 45 else "low")
         st = "fail" if max_temp >= 50 else ("warn" if max_temp >= 45 else "pass")
-        return [self._finding("thermal", "Thermal max reading", sev, st, f"max_temp={max_temp:.1f}C", "Laisser refroidir l'appareil, eviter charge intensive", max_temp)]
+        return [
+            self._finding(
+                "thermal",
+                "Thermal max reading",
+                sev,
+                st,
+                f"max_temp={max_temp:.1f}C",
+                "Laisser refroidir l'appareil, eviter charge intensive",
+                max_temp,
+            )
+        ]
 
     def _connectivity_checks(self, serial: str) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
-        wifi = self.adb.run(["shell", "cmd", "wifi", "status"], serial=serial, timeout=10)
+        wifi = self.adb.run(
+            ["shell", "cmd", "wifi", "status"], serial=serial, timeout=10
+        )
         if wifi.ok and wifi.stdout:
             enabled = "enabled" in wifi.stdout.lower()
-            out.append(self._finding("connectivity", "Wi-Fi status", "low", "pass" if enabled else "warn", "enabled" if enabled else "disabled", "Activer Wi-Fi si connexion reseau requise"))
+            out.append(
+                self._finding(
+                    "connectivity",
+                    "Wi-Fi status",
+                    "low",
+                    "pass" if enabled else "warn",
+                    "enabled" if enabled else "disabled",
+                    "Activer Wi-Fi si connexion reseau requise",
+                )
+            )
         else:
-            out.append(self._finding("connectivity", "Wi-Fi status", "low", "unsupported", wifi.stderr or "not available", ""))
+            out.append(
+                self._finding(
+                    "connectivity",
+                    "Wi-Fi status",
+                    "low",
+                    "unsupported",
+                    wifi.stderr or "not available",
+                    "",
+                )
+            )
 
-        ip = self.adb.run(["shell", "ip", "-f", "inet", "addr", "show", "wlan0"], serial=serial, timeout=8)
-        ip_val = self._str_match(r"inet\s+(\d+\.\d+\.\d+\.\d+)", ip.stdout) if ip.ok else ""
+        ip = self.adb.run(
+            ["shell", "ip", "-f", "inet", "addr", "show", "wlan0"],
+            serial=serial,
+            timeout=8,
+        )
+        ip_val = (
+            self._str_match(r"inet\s+(\d+\.\d+\.\d+\.\d+)", ip.stdout) if ip.ok else ""
+        )
         if ip_val:
-            out.append(self._finding("connectivity", "Local IP", "info", "pass", ip_val, ""))
+            out.append(
+                self._finding("connectivity", "Local IP", "info", "pass", ip_val, "")
+            )
         else:
-            out.append(self._finding("connectivity", "Local IP", "low", "warn", "not detected", "Verifier connectivite Wi-Fi"))
+            out.append(
+                self._finding(
+                    "connectivity",
+                    "Local IP",
+                    "low",
+                    "warn",
+                    "not detected",
+                    "Verifier connectivite Wi-Fi",
+                )
+            )
 
-        bt = self.adb.run(["shell", "settings", "get", "global", "bluetooth_on"], serial=serial, timeout=8)
+        bt = self.adb.run(
+            ["shell", "settings", "get", "global", "bluetooth_on"],
+            serial=serial,
+            timeout=8,
+        )
         if bt.ok:
             state = bt.stdout.strip()
-            out.append(self._finding("connectivity", "Bluetooth state", "info", "pass", "on" if state == "1" else "off", ""))
+            out.append(
+                self._finding(
+                    "connectivity",
+                    "Bluetooth state",
+                    "info",
+                    "pass",
+                    "on" if state == "1" else "off",
+                    "",
+                )
+            )
         else:
-            out.append(self._finding("connectivity", "Bluetooth state", "low", "unsupported", bt.stderr, ""))
+            out.append(
+                self._finding(
+                    "connectivity",
+                    "Bluetooth state",
+                    "low",
+                    "unsupported",
+                    bt.stderr,
+                    "",
+                )
+            )
         return out
 
-    def _adb_stability_checks(self, serial: str, device: DeviceInfo | None) -> list[dict[str, Any]]:
+    def _adb_stability_checks(
+        self, serial: str, device: DeviceInfo | None
+    ) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         state = device.state if device is not None else "unknown"
         transport = device.transport if device is not None else "unknown"
         if state == "device":
-            out.append(self._finding("adb_stability", "ADB authorization", "low", "pass", "authorized", ""))
+            out.append(
+                self._finding(
+                    "adb_stability",
+                    "ADB authorization",
+                    "low",
+                    "pass",
+                    "authorized",
+                    "",
+                )
+            )
         elif state == "unauthorized":
-            out.append(self._finding("adb_stability", "ADB authorization", "high", "fail", "unauthorized", "Debloquer device et accepter la cle RSA"))
+            out.append(
+                self._finding(
+                    "adb_stability",
+                    "ADB authorization",
+                    "high",
+                    "fail",
+                    "unauthorized",
+                    "Debloquer device et accepter la cle RSA",
+                )
+            )
         elif state == "offline":
-            out.append(self._finding("adb_stability", "ADB authorization", "medium", "warn", "offline", "Reconnecter USB/Wi-Fi et relancer adb server"))
+            out.append(
+                self._finding(
+                    "adb_stability",
+                    "ADB authorization",
+                    "medium",
+                    "warn",
+                    "offline",
+                    "Reconnecter USB/Wi-Fi et relancer adb server",
+                )
+            )
         else:
-            out.append(self._finding("adb_stability", "ADB authorization", "low", "unsupported", state, ""))
+            out.append(
+                self._finding(
+                    "adb_stability",
+                    "ADB authorization",
+                    "low",
+                    "unsupported",
+                    state,
+                    "",
+                )
+            )
 
-        out.append(self._finding("adb_stability", "Transport", "info", "pass", transport, ""))
+        out.append(
+            self._finding("adb_stability", "Transport", "info", "pass", transport, "")
+        )
 
         t0 = time.perf_counter()
         ping = self.adb.run(["shell", "echo", "ok"], serial=serial, timeout=8)
@@ -186,15 +449,43 @@ class DeviceHealthModule:
         if ping.ok and "ok" in ping.stdout:
             sev = "medium" if latency_ms >= 600 else "low"
             st = "warn" if latency_ms >= 600 else "pass"
-            out.append(self._finding("adb_stability", "ADB latency", sev, st, f"{latency_ms:.1f} ms", "Preferer USB ou ameliorer signal Wi-Fi", latency_ms))
+            out.append(
+                self._finding(
+                    "adb_stability",
+                    "ADB latency",
+                    sev,
+                    st,
+                    f"{latency_ms:.1f} ms",
+                    "Preferer USB ou ameliorer signal Wi-Fi",
+                    latency_ms,
+                )
+            )
         else:
-            out.append(self._finding("adb_stability", "ADB latency", "high", "fail", ping.stderr or "latency check failed", "Relancer adb server, verifier connexion"))
+            out.append(
+                self._finding(
+                    "adb_stability",
+                    "ADB latency",
+                    "high",
+                    "fail",
+                    ping.stderr or "latency check failed",
+                    "Relancer adb server, verifier connexion",
+                )
+            )
         return out
 
     def _app_stability_hints(self, serial: str) -> list[dict[str, Any]]:
         res = self.adb.run(["logcat", "-d", "-t", "250"], serial=serial, timeout=15)
         if not res.ok:
-            return [self._finding("app_stability", "Crash/ANR hints", "low", "unsupported", res.stderr, "Verifier acces logcat")]
+            return [
+                self._finding(
+                    "app_stability",
+                    "Crash/ANR hints",
+                    "low",
+                    "unsupported",
+                    res.stderr,
+                    "Verifier acces logcat",
+                )
+            ]
         crash_count = len(re.findall(r"FATAL EXCEPTION", res.stdout))
         anr_count = len(re.findall(r"ANR in", res.stdout))
         total = crash_count + anr_count
@@ -234,11 +525,15 @@ class DeviceHealthModule:
             return "Degraded"
         return "Critical"
 
-    def _section_summary(self, findings: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    def _section_summary(
+        self, findings: list[dict[str, Any]]
+    ) -> dict[str, dict[str, int]]:
         out: dict[str, dict[str, int]] = {}
         for f in findings:
             cat = str(f.get("category", "general"))
-            bucket = out.setdefault(cat, {"pass": 0, "warn": 0, "fail": 0, "unsupported": 0})
+            bucket = out.setdefault(
+                cat, {"pass": 0, "warn": 0, "fail": 0, "unsupported": 0}
+            )
             st = str(f.get("status", "unsupported")).lower()
             if st not in bucket:
                 st = "unsupported"

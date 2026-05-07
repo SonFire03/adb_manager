@@ -32,16 +32,24 @@ class AppManagerModule:
         result = self.adb.run(["shell", "pm", "list", "packages", flag], serial=serial)
         if not result.ok:
             return []
-        return [line.replace("package:", "").strip() for line in result.stdout.splitlines() if line.strip()]
+        return [
+            line.replace("package:", "").strip()
+            for line in result.stdout.splitlines()
+            if line.strip()
+        ]
 
-    def install_apk(self, serial: str, apk_path: Path, replace: bool = True) -> CommandResult:
+    def install_apk(
+        self, serial: str, apk_path: Path, replace: bool = True
+    ) -> CommandResult:
         cmd = ["install"]
         if replace:
             cmd.append("-r")
         cmd.append(str(apk_path))
         return self.adb.run(cmd, serial=serial, timeout=180)
 
-    def uninstall_package(self, serial: str, package_name: str, keep_data: bool = False) -> CommandResult:
+    def uninstall_package(
+        self, serial: str, package_name: str, keep_data: bool = False
+    ) -> CommandResult:
         cmd = ["uninstall"]
         if keep_data:
             cmd.append("-k")
@@ -51,11 +59,15 @@ class AppManagerModule:
     def clear_app_data(self, serial: str, package_name: str) -> CommandResult:
         return self.adb.run(["shell", "pm", "clear", package_name], serial=serial)
 
-    def enable_app(self, serial: str, package_name: str, enabled: bool = True) -> CommandResult:
+    def enable_app(
+        self, serial: str, package_name: str, enabled: bool = True
+    ) -> CommandResult:
         action = "enable" if enabled else "disable-user"
         return self.adb.run(["shell", "pm", action, package_name], serial=serial)
 
-    def backup_apk(self, serial: str, package_name: str, dest_file: Path) -> CommandResult:
+    def backup_apk(
+        self, serial: str, package_name: str, dest_file: Path
+    ) -> CommandResult:
         path_result = self.adb.run(["shell", "pm", "path", package_name], serial=serial)
         if not path_result.ok or not path_result.stdout:
             return path_result
@@ -80,7 +92,9 @@ class AppManagerModule:
         paths.sort(key=lambda p: (0 if p.endswith("/base.apk") else 1, len(p)))
         return paths
 
-    def fetch_app_icon(self, serial: str, package_name: str, cache_dir: Path) -> Path | None:
+    def fetch_app_icon(
+        self, serial: str, package_name: str, cache_dir: Path
+    ) -> Path | None:
         cache_dir.mkdir(parents=True, exist_ok=True)
         key = hashlib.sha1(f"{serial}:{package_name}".encode("utf-8")).hexdigest()[:20]
         missing_marker = cache_dir / f"{key}.missing"
@@ -99,7 +113,9 @@ class AppManagerModule:
 
         for index, remote_apk in enumerate(remote_apks):
             local_apk = cache_dir / f"{key}.{index}.apk"
-            pull = self.adb.run(["pull", remote_apk, str(local_apk)], serial=serial, timeout=120)
+            pull = self.adb.run(
+                ["pull", remote_apk, str(local_apk)], serial=serial, timeout=120
+            )
             if not pull.ok or not local_apk.exists():
                 local_apk.unlink(missing_ok=True)
                 continue
@@ -142,7 +158,12 @@ class AppManagerModule:
             low = name.lower()
             if not low.startswith("res/"):
                 continue
-            if not (low.endswith(".png") or low.endswith(".webp") or low.endswith(".jpg") or low.endswith(".jpeg")):
+            if not (
+                low.endswith(".png")
+                or low.endswith(".webp")
+                or low.endswith(".jpg")
+                or low.endswith(".jpeg")
+            ):
                 continue
             if "/mipmap" not in low and "/drawable" not in low:
                 continue
@@ -154,7 +175,9 @@ class AppManagerModule:
         keyword_candidates = [
             name
             for name in base_candidates
-            if any(token in name.lower() for token in ("launcher", "icon", "logo", "app"))
+            if any(
+                token in name.lower() for token in ("launcher", "icon", "logo", "app")
+            )
             or re.search(r"/ic_[a-z0-9_]+", name.lower())
         ]
         candidates = keyword_candidates or base_candidates
@@ -174,7 +197,9 @@ class AppManagerModule:
                     density_score = value
                     break
             launcher_bonus = 3 if "ic_launcher" in low else 0
-            keyword_bonus = 2 if any(token in low for token in ("launcher", "icon", "logo")) else 0
+            keyword_bonus = (
+                2 if any(token in low for token in ("launcher", "icon", "logo")) else 0
+            )
             mipmap_bonus = 1 if "/mipmap" in low else 0
             extension_bonus = 1 if low.endswith(".png") else 0
             size_bonus = int(min(infos.get(path, 0), 2_000_000) / 4096)
@@ -207,7 +232,9 @@ class AppManagerModule:
             "analyzed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
-        dump = self.adb.run(["shell", "dumpsys", "package", package_name], serial=serial, timeout=20)
+        dump = self.adb.run(
+            ["shell", "dumpsys", "package", package_name], serial=serial, timeout=20
+        )
         if not dump.ok or not dump.stdout:
             data["error"] = dump.stderr or "dumpsys package failed"
             return data
@@ -236,17 +263,27 @@ class AppManagerModule:
         data["sensitive_permissions"] = sensitive
         data["permission_count"] = len(permissions)
 
-        risk, risk_score = self.compute_risk_level(permissions=permissions, app_type=app_type, code_path=code_path)
+        risk, risk_score = self.compute_risk_level(
+            permissions=permissions, app_type=app_type, code_path=code_path
+        )
         data["risk"] = risk
         data["risk_score"] = risk_score
 
         # Best effort: sizes may be unavailable without elevated permissions.
-        size_data = self.adb.run(["shell", "du", "-sk", f"/data/user/0/{package_name}"], serial=serial, timeout=8)
+        size_data = self.adb.run(
+            ["shell", "du", "-sk", f"/data/user/0/{package_name}"],
+            serial=serial,
+            timeout=8,
+        )
         if size_data.ok and size_data.stdout:
             kb = self._parse_du_kb(size_data.stdout)
             if kb > 0:
                 data["data_size"] = self._fmt_bytes(kb * 1024)
-        size_cache = self.adb.run(["shell", "du", "-sk", f"/data/user/0/{package_name}/cache"], serial=serial, timeout=8)
+        size_cache = self.adb.run(
+            ["shell", "du", "-sk", f"/data/user/0/{package_name}/cache"],
+            serial=serial,
+            timeout=8,
+        )
         if size_cache.ok and size_cache.stdout:
             kb = self._parse_du_kb(size_cache.stdout)
             if kb >= 0:
@@ -254,7 +291,9 @@ class AppManagerModule:
 
         return data
 
-    def compute_risk_level(self, permissions: list[str], app_type: str, code_path: str) -> tuple[str, int]:
+    def compute_risk_level(
+        self, permissions: list[str], app_type: str, code_path: str
+    ) -> tuple[str, int]:
         sensitive_count = sum(1 for p in permissions if p in SENSITIVE_PERMISSIONS)
         score = sensitive_count * 3
 
@@ -288,7 +327,11 @@ class AppManagerModule:
         path = (code_path or "").lower()
         if "pkgflags=[" in low and (" system " in low or " privileged " in low):
             return "system"
-        if path.startswith("/system/") or path.startswith("/product/") or path.startswith("/vendor/"):
+        if (
+            path.startswith("/system/")
+            or path.startswith("/product/")
+            or path.startswith("/vendor/")
+        ):
             return "system"
         return "user"
 

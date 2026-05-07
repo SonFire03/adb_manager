@@ -48,11 +48,14 @@ class DeviceProfilesModule:
                     serial=serial,
                     wifi_endpoint=str(row.get("wifi_endpoint", "")).strip(),
                     favorite_local_path=str(row.get("favorite_local_path", "")).strip(),
-                    favorite_remote_path=str(row.get("favorite_remote_path", "")).strip(),
+                    favorite_remote_path=str(
+                        row.get("favorite_remote_path", "")
+                    ).strip(),
                     last_actions=self._to_list(row.get("last_actions")),
                     favorite_commands=self._to_list(row.get("favorite_commands")),
                     ui_theme=str(row.get("ui_theme", "dark")).strip() or "dark",
-                    ui_density=str(row.get("ui_density", "comfortable")).strip() or "comfortable",
+                    ui_density=str(row.get("ui_density", "comfortable")).strip()
+                    or "comfortable",
                     language=str(row.get("language", "fr")).strip() or "fr",
                     tags=self._to_list(row.get("tags")),
                     last_seen=str(row.get("last_seen", "")).strip(),

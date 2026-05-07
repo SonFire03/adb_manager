@@ -32,7 +32,10 @@ class SafeModeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             cfg_path = base / "settings.json"
-            cfg_path.write_text('{"app": {"safe_mode": true}, "adb": {"binary": "adb"}}', encoding="utf-8")
+            cfg_path.write_text(
+                '{"app": {"safe_mode": true}, "adb": {"binary": "adb"}}',
+                encoding="utf-8",
+            )
             cfg = ConfigManager(cfg_path)
             db = HistoryDB(base / "history.db")
             adb = ADBManager(cfg, db)

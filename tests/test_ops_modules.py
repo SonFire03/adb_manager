@@ -14,11 +14,13 @@ from modules.workflow_center import WorkflowCenterModule
 class _StubADB:
     def run(self, args, serial=None, timeout=None):  # noqa: ANN001
         cmd = " ".join(args)
+
         class R:
             def __init__(self, ok=True, stdout="", stderr=""):
                 self.ok = ok
                 self.stdout = stdout
                 self.stderr = stderr
+
         if "find" in cmd and "stat -c" in cmd:
             return R(True, "10|100|/sdcard/src/a.txt\n")
         if "pull" in cmd or "push" in cmd:
@@ -30,7 +32,13 @@ class NotificationCenterTests(unittest.TestCase):
     def test_add_list_mark_delete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             mod = NotificationCenterModule(Path(tmp) / "n.db")
-            nid = mod.add(severity="warning", category="health", title="Low battery", message="Battery low", device_serial="ABC")
+            nid = mod.add(
+                severity="warning",
+                category="health",
+                title="Low battery",
+                message="Battery low",
+                device_serial="ABC",
+            )
             self.assertGreater(nid, 0)
             rows = mod.list()
             self.assertEqual(len(rows), 1)
@@ -91,7 +99,10 @@ class SupportBundleTests(unittest.TestCase):
                 bundle_name="bundle",
                 serial="ABC",
                 include={"device_inspector": True, "device_health": True},
-                data={"device_inspector": {"model": "Pixel"}, "device_health": {"score": 90}},
+                data={
+                    "device_inspector": {"model": "Pixel"},
+                    "device_health": {"score": 90},
+                },
                 output_dir=base / "reports",
             )
             self.assertTrue(out["ok"])

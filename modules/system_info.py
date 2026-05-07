@@ -28,7 +28,9 @@ class SystemInfoModule:
             info["battery_level"] = level.group(1) if level else "n/a"
             info["battery_status"] = status.group(1) if status else "n/a"
         storage = self.adb.run(["shell", "df", "-h", "/data"], serial=serial)
-        info["storage"] = storage.stdout.splitlines()[-1] if storage.ok and storage.stdout else "n/a"
+        info["storage"] = (
+            storage.stdout.splitlines()[-1] if storage.ok and storage.stdout else "n/a"
+        )
         return info
 
     def monitor_snapshot(self, serial: str) -> dict[str, str]:
@@ -38,4 +40,3 @@ class SystemInfoModule:
             "top": top.stdout if top.ok else top.stderr,
             "meminfo": mem.stdout if mem.ok else mem.stderr,
         }
-

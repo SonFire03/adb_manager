@@ -16,9 +16,15 @@ class BackupRestoreModule:
     def full_backup(self, serial: str, name: str | None = None) -> CommandResult:
         stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         output = self.backup_dir / f"{name or 'android_backup'}_{stamp}.ab"
-        return self.adb.run(["backup", "-apk", "-shared", "-all", "-f", str(output)], serial=serial, timeout=600)
+        return self.adb.run(
+            ["backup", "-apk", "-shared", "-all", "-f", str(output)],
+            serial=serial,
+            timeout=600,
+        )
 
-    def selective_backup(self, serial: str, packages: list[str], name: str | None = None) -> CommandResult:
+    def selective_backup(
+        self, serial: str, packages: list[str], name: str | None = None
+    ) -> CommandResult:
         stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         output = self.backup_dir / f"{name or 'android_selective'}_{stamp}.ab"
         cmd = ["backup", "-apk", "-obb", "-f", str(output), *packages]
@@ -26,4 +32,3 @@ class BackupRestoreModule:
 
     def restore(self, serial: str, backup_file: Path) -> CommandResult:
         return self.adb.run(["restore", str(backup_file)], serial=serial, timeout=600)
-

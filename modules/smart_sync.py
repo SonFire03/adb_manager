@@ -36,10 +36,14 @@ class SmartSyncModule:
         destination: str,
         mode: str,
     ) -> dict[str, Any]:
-        src_map = self._scan(serial=serial, direction=direction, root=source, side="src")
+        src_map = self._scan(
+            serial=serial, direction=direction, root=source, side="src"
+        )
         if not src_map.get("ok"):
             return src_map
-        dst_map = self._scan(serial=serial, direction=direction, root=destination, side="dst")
+        dst_map = self._scan(
+            serial=serial, direction=direction, root=destination, side="dst"
+        )
         if not dst_map.get("ok"):
             return dst_map
         src_files = src_map.get("files", {})
@@ -49,7 +53,15 @@ class SmartSyncModule:
         for rel in all_paths:
             s = src_files.get(rel)
             d = dst_files.get(rel)
-            item = self._decide(rel=rel, src=s, dst=d, mode=mode, direction=direction, source_root=source, dest_root=destination)
+            item = self._decide(
+                rel=rel,
+                src=s,
+                dst=d,
+                mode=mode,
+                direction=direction,
+                source_root=source,
+                dest_root=destination,
+            )
             if item is not None:
                 plan.append(item)
         return {
@@ -115,32 +127,155 @@ class SmartSyncModule:
             return None
         if mode == "copy_missing_only":
             if src_exists and not dst_exists:
-                return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "copy", "missing in destination")
-            return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "skip", "already exists")
+                return SyncItem(
+                    rel,
+                    src_abs,
+                    dst_abs,
+                    src_size,
+                    dst_size,
+                    src_mtime,
+                    dst_mtime,
+                    "copy",
+                    "missing in destination",
+                )
+            return SyncItem(
+                rel,
+                src_abs,
+                dst_abs,
+                src_size,
+                dst_size,
+                src_mtime,
+                dst_mtime,
+                "skip",
+                "already exists",
+            )
         if mode == "update_newer_only":
             if src_exists and not dst_exists:
-                return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "copy", "missing in destination")
+                return SyncItem(
+                    rel,
+                    src_abs,
+                    dst_abs,
+                    src_size,
+                    dst_size,
+                    src_mtime,
+                    dst_mtime,
+                    "copy",
+                    "missing in destination",
+                )
             if src_exists and dst_exists and src_mtime > dst_mtime:
-                return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "update", "source newer")
-            return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "skip", "destination newer/equal")
+                return SyncItem(
+                    rel,
+                    src_abs,
+                    dst_abs,
+                    src_size,
+                    dst_size,
+                    src_mtime,
+                    dst_mtime,
+                    "update",
+                    "source newer",
+                )
+            return SyncItem(
+                rel,
+                src_abs,
+                dst_abs,
+                src_size,
+                dst_size,
+                src_mtime,
+                dst_mtime,
+                "skip",
+                "destination newer/equal",
+            )
         if mode == "skip_duplicates":
             if src_exists and not dst_exists:
-                return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "copy", "missing in destination")
-            if src_exists and dst_exists and src_size == dst_size and src_mtime == dst_mtime:
-                return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "skip", "duplicate")
+                return SyncItem(
+                    rel,
+                    src_abs,
+                    dst_abs,
+                    src_size,
+                    dst_size,
+                    src_mtime,
+                    dst_mtime,
+                    "copy",
+                    "missing in destination",
+                )
+            if (
+                src_exists
+                and dst_exists
+                and src_size == dst_size
+                and src_mtime == dst_mtime
+            ):
+                return SyncItem(
+                    rel,
+                    src_abs,
+                    dst_abs,
+                    src_size,
+                    dst_size,
+                    src_mtime,
+                    dst_mtime,
+                    "skip",
+                    "duplicate",
+                )
             if src_exists and dst_exists:
-                return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "conflict", "different content")
+                return SyncItem(
+                    rel,
+                    src_abs,
+                    dst_abs,
+                    src_size,
+                    dst_size,
+                    src_mtime,
+                    dst_mtime,
+                    "conflict",
+                    "different content",
+                )
             return None
         # mirror_selected (non-destructive in this project: no delete)
         if src_exists and not dst_exists:
-            return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "copy", "missing in destination")
-        if src_exists and dst_exists and (src_size != dst_size or src_mtime != dst_mtime):
-            return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "update", "mirror update")
-        return SyncItem(rel, src_abs, dst_abs, src_size, dst_size, src_mtime, dst_mtime, "skip", "already mirrored")
+            return SyncItem(
+                rel,
+                src_abs,
+                dst_abs,
+                src_size,
+                dst_size,
+                src_mtime,
+                dst_mtime,
+                "copy",
+                "missing in destination",
+            )
+        if (
+            src_exists
+            and dst_exists
+            and (src_size != dst_size or src_mtime != dst_mtime)
+        ):
+            return SyncItem(
+                rel,
+                src_abs,
+                dst_abs,
+                src_size,
+                dst_size,
+                src_mtime,
+                dst_mtime,
+                "update",
+                "mirror update",
+            )
+        return SyncItem(
+            rel,
+            src_abs,
+            dst_abs,
+            src_size,
+            dst_size,
+            src_mtime,
+            dst_mtime,
+            "skip",
+            "already mirrored",
+        )
 
-    def _scan(self, *, serial: str, direction: str, root: str, side: str) -> dict[str, Any]:
+    def _scan(
+        self, *, serial: str, direction: str, root: str, side: str
+    ) -> dict[str, Any]:
         try:
-            if (direction == "device_to_host" and side == "src") or (direction == "host_to_device" and side == "dst"):
+            if (direction == "device_to_host" and side == "src") or (
+                direction == "host_to_device" and side == "dst"
+            ):
                 return self._scan_remote(serial, root)
             return self._scan_local(root)
         except Exception as exc:  # noqa: BLE001
@@ -164,7 +299,11 @@ class SmartSyncModule:
         cmd = f"find {self._q(root)} -type f -exec stat -c '%s|%Y|%n' {{}} \\;"
         res = self.adb.run(["shell", "sh", "-c", cmd], serial=serial, timeout=120)
         if not res.ok:
-            return {"ok": False, "error": res.stderr or "remote find failed", "files": {}}
+            return {
+                "ok": False,
+                "error": res.stderr or "remote find failed",
+                "files": {},
+            }
         files: dict[str, dict[str, Any]] = {}
         for line in res.stdout.splitlines():
             text = line.strip()
@@ -174,7 +313,11 @@ class SmartSyncModule:
             size = int(m.group(1))
             mtime = int(m.group(2))
             full = m.group(3).strip()
-            rel = full[len(root):].lstrip("/") if full.startswith(root) else full.lstrip("/")
+            rel = (
+                full[len(root) :].lstrip("/")
+                if full.startswith(root)
+                else full.lstrip("/")
+            )
             files[rel] = {"size": size, "mtime": mtime}
         return {"ok": True, "files": files}
 

@@ -5,7 +5,17 @@ from PySide6.QtWidgets import QPlainTextEdit
 
 
 class ScriptEditor(QPlainTextEdit):
-    KEYWORDS = ("shell", "pm", "am", "input", "install", "uninstall", "pull", "push", "reboot")
+    KEYWORDS = (
+        "shell",
+        "pm",
+        "am",
+        "input",
+        "install",
+        "uninstall",
+        "pull",
+        "push",
+        "reboot",
+    )
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)

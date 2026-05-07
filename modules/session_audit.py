@@ -17,8 +17,7 @@ class SessionAuditModule:
 
     def _setup(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,
                     started_at TEXT NOT NULL,
@@ -27,10 +26,8 @@ class SessionAuditModule:
                     device_count INTEGER DEFAULT 0,
                     summary_json TEXT DEFAULT '{}'
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     session_id TEXT NOT NULL,
@@ -43,8 +40,7 @@ class SessionAuditModule:
                     message TEXT,
                     payload_json TEXT DEFAULT '{}'
                 )
-                """
-            )
+                """)
             conn.commit()
 
     def start_session(self, session_id: str) -> None:
@@ -56,7 +52,12 @@ class SessionAuditModule:
             )
             conn.commit()
 
-    def end_session(self, session_id: str, summary: dict[str, Any] | None = None, status: str = "completed") -> None:
+    def end_session(
+        self,
+        session_id: str,
+        summary: dict[str, Any] | None = None,
+        status: str = "completed",
+    ) -> None:
         now = self._iso_now()
         summary_text = json.dumps(summary or {}, ensure_ascii=False)
         with self._lock, sqlite3.connect(self.db_path) as conn:
@@ -177,7 +178,11 @@ class SessionAuditModule:
         return out
 
     def export_session_json(self, session_id: str, output_path: Path) -> dict[str, Any]:
-        sessions = [s for s in self.list_sessions(limit=1000) if s.get("session_id") == session_id]
+        sessions = [
+            s
+            for s in self.list_sessions(limit=1000)
+            if s.get("session_id") == session_id
+        ]
         session = sessions[0] if sessions else {"session_id": session_id}
         events = self.list_events(session_id=session_id, limit=5000)
         payload = {
@@ -186,7 +191,9 @@ class SessionAuditModule:
             "events": events,
         }
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        output_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         return payload
 
     def export_session_html(self, session_id: str, output_path: Path) -> None:
@@ -283,7 +290,9 @@ class SessionAuditModule:
             "by_type": by_type,
         }
 
-    def list_health_timeline(self, device_serial: str | None = None, limit: int = 300) -> list[dict[str, Any]]:
+    def list_health_timeline(
+        self, device_serial: str | None = None, limit: int = 300
+    ) -> list[dict[str, Any]]:
         events = self.list_events(
             device_serial=device_serial or None,
             event_type="system",

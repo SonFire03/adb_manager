@@ -50,7 +50,9 @@ class ConfigManager:
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self._data, indent=2, ensure_ascii=False), encoding="utf-8")
+        self.path.write_text(
+            json.dumps(self._data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     def get(self, dotted_key: str, default: Any = None) -> Any:
         node: Any = self._data
@@ -77,8 +79,7 @@ class HistoryDB:
 
     def _setup(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS device_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     serial TEXT NOT NULL,
@@ -86,10 +87,8 @@ class HistoryDB:
                     event TEXT NOT NULL,
                     ts DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS command_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     serial TEXT,
@@ -99,8 +98,7 @@ class HistoryDB:
                     stderr TEXT,
                     ts DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-                """
-            )
+                """)
             conn.commit()
 
     def add_device_event(self, serial: str, model: str, event: str) -> None:
@@ -111,7 +109,9 @@ class HistoryDB:
             )
             conn.commit()
 
-    def add_command_event(self, serial: str | None, command: str, ok: bool, stdout: str, stderr: str) -> None:
+    def add_command_event(
+        self, serial: str | None, command: str, ok: bool, stdout: str, stderr: str
+    ) -> None:
         with self._lock, sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO command_history(serial, command, ok, stdout, stderr) VALUES (?, ?, ?, ?, ?)",
@@ -138,7 +138,9 @@ def setup_logging(base_dir: Path, config: ConfigManager) -> None:
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
     handlers: list[logging.Handler] = [
-        RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"),
+        RotatingFileHandler(
+            log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
+        ),
         logging.StreamHandler(),
     ]
     root_logger = logging.getLogger()

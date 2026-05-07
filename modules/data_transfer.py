@@ -10,7 +10,6 @@ from typing import Any
 
 from core.adb_manager import ADBManager
 
-
 PRESET_FOLDERS = {
     "Photos & Videos": ["/sdcard/DCIM", "/sdcard/Pictures", "/sdcard/Movies"],
     "Documents": ["/sdcard/Documents"],
@@ -68,19 +67,45 @@ class DataTransferModule:
         if task.direction == "host_to_device":
             src = Path(task.source)
             if not src.exists():
-                return {"ok": False, "error": f"Source introuvable: {src}", "bytes": 0, "files": 0}
+                return {
+                    "ok": False,
+                    "error": f"Source introuvable: {src}",
+                    "bytes": 0,
+                    "files": 0,
+                }
             size, files = self._local_size(src)
-            return {"ok": True, "bytes": size, "files": files, "human": self._fmt_bytes(size)}
+            return {
+                "ok": True,
+                "bytes": size,
+                "files": files,
+                "human": self._fmt_bytes(size),
+            }
 
         # device_to_host
-        du = self.adb.run(["shell", "du", "-sk", task.source], serial=task.serial, timeout=20)
+        du = self.adb.run(
+            ["shell", "du", "-sk", task.source], serial=task.serial, timeout=20
+        )
         if not du.ok:
-            return {"ok": False, "error": du.stderr or "du failed", "bytes": 0, "files": 0}
+            return {
+                "ok": False,
+                "error": du.stderr or "du failed",
+                "bytes": 0,
+                "files": 0,
+            }
         kb = self._parse_du_kb(du.stdout)
-        count = self.adb.run(["shell", "find", task.source, "-type", "f", "|", "wc", "-l"], serial=task.serial, timeout=30)
+        count = self.adb.run(
+            ["shell", "find", task.source, "-type", "f", "|", "wc", "-l"],
+            serial=task.serial,
+            timeout=30,
+        )
         file_count = self._parse_int(count.stdout) if count.ok else 0
         size_bytes = kb * 1024
-        return {"ok": True, "bytes": size_bytes, "files": file_count, "human": self._fmt_bytes(size_bytes)}
+        return {
+            "ok": True,
+            "bytes": size_bytes,
+            "files": file_count,
+            "human": self._fmt_bytes(size_bytes),
+        }
 
     def execute_task(self, task: TransferTask) -> dict[str, Any]:
         estimate = self.estimate_size(task)
@@ -113,12 +138,18 @@ class DataTransferModule:
                     "message": f"Source locale introuvable: {source_path}",
                     "estimate": estimate,
                 }
-            result = self.adb.run(["push", str(source_path), task.destination], serial=task.serial, timeout=900)
+            result = self.adb.run(
+                ["push", str(source_path), task.destination],
+                serial=task.serial,
+                timeout=900,
+            )
             verify = self._verify_remote_path(task.serial, task.destination)
         else:
             dest_path = Path(task.destination)
             dest_path.parent.mkdir(parents=True, exist_ok=True)
-            result = self.adb.run(["pull", task.source, str(dest_path)], serial=task.serial, timeout=900)
+            result = self.adb.run(
+                ["pull", task.source, str(dest_path)], serial=task.serial, timeout=900
+            )
             verify = self._verify_local_path(dest_path)
 
         ok = bool(result.ok) and bool(verify.get("ok", False))

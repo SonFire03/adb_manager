@@ -17,8 +17,32 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEasingCurve, QObject, QPointF, QProcess, QPropertyAnimation, QSize, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QColor, QIcon, QImage, QKeySequence, QPainter, QPen, QPixmap, QPolygonF, QShortcut, QTextCursor, QTextDocument
+from PySide6.QtCore import (
+    QEasingCurve,
+    QObject,
+    QPointF,
+    QProcess,
+    QPropertyAnimation,
+    QSize,
+    Qt,
+    QTimer,
+    QUrl,
+    Signal,
+    Slot,
+)
+from PySide6.QtGui import (
+    QColor,
+    QIcon,
+    QImage,
+    QKeySequence,
+    QPainter,
+    QPen,
+    QPixmap,
+    QPolygonF,
+    QShortcut,
+    QTextCursor,
+    QTextDocument,
+)
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtPrintSupport import QPrinter
@@ -112,7 +136,11 @@ class HealthTimelineChart(QWidget):
             p.drawLine(rect.left(), int(y), rect.right(), int(y))
         if len(self._scores) < 2:
             p.setPen(QPen(QColor("#6b7280"), 1))
-            p.drawText(rect, Qt.AlignmentFlag.AlignCenter, "Pas assez de donnees pour la courbe")
+            p.drawText(
+                rect,
+                Qt.AlignmentFlag.AlignCenter,
+                "Pas assez de donnees pour la courbe",
+            )
             return
         step = rect.width() / max(1, len(self._scores) - 1)
         pts = []
@@ -149,7 +177,9 @@ class MainWindow(QMainWindow):
         self.backup_module = BackupRestoreModule(self.adb, base_dir / "backups")
         self.profiles_module = DeviceProfilesModule(config)
         self.audit_module = SessionAuditModule(base_dir / "config" / "session_audit.db")
-        self.notifications_module = NotificationCenterModule(base_dir / "config" / "notifications.db")
+        self.notifications_module = NotificationCenterModule(
+            base_dir / "config" / "notifications.db"
+        )
         self.workflow_module = WorkflowCenterModule()
         self.bundle_module = SupportBundleModule(base_dir)
         self.snapshot_module = SnapshotCompareModule(
@@ -210,7 +240,9 @@ class MainWindow(QMainWindow):
         self._app_analysis_pending: set[str] = set()
         self._app_analysis_max_pending = 3
         self._app_analysis_generation = 0
-        self._session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+        self._session_id = (
+            f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+        )
         self._current_session_started = datetime.utcnow().isoformat() + "Z"
         self._audit_last_events: list[dict[str, Any]] = []
         self._snapshot_diff: dict[str, Any] = {}
@@ -261,7 +293,9 @@ class MainWindow(QMainWindow):
         title_col.setSpacing(0)
         self.app_title = QLabel("ADB Manager Pro")
         self.app_title.setObjectName("appTitle")
-        self.app_subtitle = QLabel("Gestion centralisee Android • USB / WiFi • Debug / Automation")
+        self.app_subtitle = QLabel(
+            "Gestion centralisee Android • USB / WiFi • Debug / Automation"
+        )
         self.app_subtitle.setObjectName("appSubtitle")
         title_col.addWidget(self.app_title)
         title_col.addWidget(self.app_subtitle)
@@ -300,7 +334,9 @@ class MainWindow(QMainWindow):
         self.theme_box.setCurrentText(str(self.config.get("app.theme", "dark")))
         self.density_box = QComboBox()
         self.density_box.addItems(["comfortable", "compact"])
-        self.density_box.setCurrentText(str(self.config.get("ui.density", "comfortable")))
+        self.density_box.setCurrentText(
+            str(self.config.get("ui.density", "comfortable"))
+        )
         self.lang_box = QComboBox()
         self.lang_box.addItems(["fr", "en"])
         self.lang_box.setCurrentText(str(self.config.get("app.language", "fr")))
@@ -317,7 +353,9 @@ class MainWindow(QMainWindow):
         self.profile_delete_btn.setObjectName("dangerBtn")
         self.quick_command_input = QLineEdit()
         self.quick_command_input.setObjectName("quickCommandInput")
-        self.quick_command_input.setPlaceholderText("Commande rapide (ex: shell getprop ro.product.model)")
+        self.quick_command_input.setPlaceholderText(
+            "Commande rapide (ex: shell getprop ro.product.model)"
+        )
         self.quick_command_btn = QPushButton("Executer")
         self.quick_command_btn.setObjectName("successBtn")
 
@@ -357,7 +395,9 @@ class MainWindow(QMainWindow):
         sidebar_layout.setSpacing(8)
         self.sidebar_title = QLabel("Navigation")
         self.sidebar_title.setObjectName("sidebarTitle")
-        self.shortcut_hint = QLabel("Ctrl+1..9 onglets  •  Ctrl+B sidebar  •  Ctrl+K commandes")
+        self.shortcut_hint = QLabel(
+            "Ctrl+1..9 onglets  •  Ctrl+B sidebar  •  Ctrl+K commandes"
+        )
         self.shortcut_hint.setObjectName("shortcutHint")
         self.nav_sidebar = QListWidget()
         self.nav_sidebar.setObjectName("navSidebar")
@@ -436,9 +476,15 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         metrics = QHBoxLayout()
-        self.metric_devices = self._build_metric_card("Appareils connectes", "0", "metric_devices_value")
-        self.metric_root = self._build_metric_card("Appareils root", "0", "metric_root_value")
-        self.metric_active = self._build_metric_card("Actif", "-", "metric_active_value")
+        self.metric_devices = self._build_metric_card(
+            "Appareils connectes", "0", "metric_devices_value"
+        )
+        self.metric_root = self._build_metric_card(
+            "Appareils root", "0", "metric_root_value"
+        )
+        self.metric_active = self._build_metric_card(
+            "Actif", "-", "metric_active_value"
+        )
         metrics.addWidget(self.metric_devices)
         metrics.addWidget(self.metric_root)
         metrics.addWidget(self.metric_active)
@@ -475,7 +521,9 @@ class MainWindow(QMainWindow):
         right_layout.setContentsMargins(10, 10, 10, 10)
 
         self.device_table = QTableWidget(0, 6)
-        self.device_table.setHorizontalHeaderLabels(["Serial", "Etat", "Modele", "Transport", "Android", "Root"])
+        self.device_table.setHorizontalHeaderLabels(
+            ["Serial", "Etat", "Modele", "Transport", "Android", "Root"]
+        )
         left_layout.addWidget(QLabel("Appareils connectes"))
         left_layout.addWidget(self.device_table)
 
@@ -507,7 +555,9 @@ class MainWindow(QMainWindow):
         inspector_layout.addLayout(inspector_top)
         self.inspector_text = QTextEdit()
         self.inspector_text.setReadOnly(True)
-        self.inspector_text.setPlaceholderText("Inspector appareil: marque, modele, batterie, stockage, ecran, IP, debug...")
+        self.inspector_text.setPlaceholderText(
+            "Inspector appareil: marque, modele, batterie, stockage, ecran, IP, debug..."
+        )
         self.inspector_text.setMinimumHeight(180)
         inspector_layout.addWidget(self.inspector_text)
 
@@ -529,7 +579,9 @@ class MainWindow(QMainWindow):
         health_layout.addLayout(health_top)
         self.health_text = QTextEdit()
         self.health_text.setReadOnly(True)
-        self.health_text.setPlaceholderText("Checks ADB: binaire, serveur, auth RSA, latence, commandes critiques...")
+        self.health_text.setPlaceholderText(
+            "Checks ADB: binaire, serveur, auth RSA, latence, commandes critiques..."
+        )
         self.health_text.setMinimumHeight(180)
         health_layout.addWidget(self.health_text)
 
@@ -702,7 +754,9 @@ class MainWindow(QMainWindow):
         self.apps_search = QLineEdit()
         self.apps_search.setPlaceholderText("Rechercher package/app...")
         self.apps_risk_filter = QComboBox()
-        self.apps_risk_filter.addItems(["Tous risques", "LOW", "MEDIUM", "HIGH", "Sans analyse"])
+        self.apps_risk_filter.addItems(
+            ["Tous risques", "LOW", "MEDIUM", "HIGH", "Sans analyse"]
+        )
         self.apps_sort_box = QComboBox()
         self.apps_sort_box.addItems(["Tri: Nom", "Tri: Risque", "Tri: Permissions"])
         self.apps_refresh_btn = QPushButton("Charger apps")
@@ -756,7 +810,9 @@ class MainWindow(QMainWindow):
         self.apps_detail_text = QTextEdit()
         self.apps_detail_text.setReadOnly(True)
         self.apps_detail_text.setObjectName("commandDetails")
-        self.apps_detail_text.setPlaceholderText("Selectionne une app pour voir package, version, permissions sensibles et risque.")
+        self.apps_detail_text.setPlaceholderText(
+            "Selectionne une app pour voir package, version, permissions sensibles et risque."
+        )
         self.apps_detail_text.setMinimumHeight(180)
         right_l.addWidget(self.apps_detail_text)
 
@@ -768,8 +824,12 @@ class MainWindow(QMainWindow):
         self.apps_risk_table.setHorizontalHeaderLabels(
             ["Package", "Label", "Type", "Risque", "Perms", "Sensibles", "Version"]
         )
-        self.apps_risk_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.apps_risk_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.apps_risk_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.apps_risk_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
         self.apps_risk_table.setSortingEnabled(True)
         right_l.addWidget(self.apps_risk_table, 1)
         split.addWidget(right)
@@ -789,7 +849,9 @@ class MainWindow(QMainWindow):
         self.apps_risk_filter.currentTextChanged.connect(self._apply_apps_filters)
         self.apps_sort_box.currentTextChanged.connect(self._apply_apps_filters)
         self.apps_list.currentItemChanged.connect(self._on_apps_item_changed)
-        self.apps_risk_table.itemSelectionChanged.connect(self._sync_apps_selection_from_table)
+        self.apps_risk_table.itemSelectionChanged.connect(
+            self._sync_apps_selection_from_table
+        )
 
     def _build_system_tab(self) -> None:
         tab = QWidget()
@@ -899,11 +961,15 @@ class MainWindow(QMainWindow):
         command_filters.setSpacing(8)
         command_filters.addWidget(QLabel("Filtre"))
         self.command_filter_box = QComboBox()
-        self.command_filter_box.addItems(["Toutes", "Sans root", "Root parfois", "Root oui"])
+        self.command_filter_box.addItems(
+            ["Toutes", "Sans root", "Root parfois", "Root oui"]
+        )
         self.command_filter_box.setMinimumWidth(150)
         command_filters.addWidget(self.command_filter_box)
         self.command_search = QLineEdit()
-        self.command_search.setPlaceholderText("Rechercher commande (nom, commande, categorie)")
+        self.command_search.setPlaceholderText(
+            "Rechercher commande (nom, commande, categorie)"
+        )
         command_filters.addWidget(self.command_search, 1)
         command_layout.addLayout(command_filters)
         command_actions = QHBoxLayout()
@@ -924,9 +990,13 @@ class MainWindow(QMainWindow):
         options_row = QHBoxLayout()
         options_row.setSpacing(8)
         self.confirm_critical_box = QCheckBox("Confirmation commandes critiques")
-        self.confirm_critical_box.setChecked(bool(self.config.get("ui.confirm_critical_commands", True)))
+        self.confirm_critical_box.setChecked(
+            bool(self.config.get("ui.confirm_critical_commands", True))
+        )
         self.logcat_autoscroll_box = QCheckBox("Auto-scroll logcat live")
-        self.logcat_autoscroll_box.setChecked(bool(self.config.get("ui.logcat_auto_scroll", True)))
+        self.logcat_autoscroll_box.setChecked(
+            bool(self.config.get("ui.logcat_auto_scroll", True))
+        )
         options_row.addWidget(self.confirm_critical_box)
         options_row.addWidget(self.logcat_autoscroll_box)
         options_row.addStretch()
@@ -934,17 +1004,31 @@ class MainWindow(QMainWindow):
         self.command_catalog = QListWidget()
         self.command_catalog.setObjectName("commandCatalog")
         self.command_catalog.setMinimumHeight(230)
-        self._command_entries: list[tuple[str, str, str, str, str, str, tuple[str, ...]]] = []
+        self._command_entries: list[
+            tuple[str, str, str, str, str, str, tuple[str, ...]]
+        ] = []
         for category, items in COMMAND_CATALOG.items():
             label = items[0].category if items else category
             for item in items:
                 root_state = self._root_state_from_requirement(item.root_required)
                 self._command_entries.append(
-                    (category, label, item.name, item.command, root_state, item.description, item.placeholders)
+                    (
+                        category,
+                        label,
+                        item.name,
+                        item.command,
+                        root_state,
+                        item.description,
+                        item.placeholders,
+                    )
                 )
-        self.command_filter_box.setCurrentText(str(self.config.get("ui.command_root_filter", "Toutes")))
+        self.command_filter_box.setCurrentText(
+            str(self.config.get("ui.command_root_filter", "Toutes"))
+        )
         self.command_search.setText(str(self.config.get("ui.command_search", "")))
-        self.favorites_only.setChecked(bool(self.config.get("ui.command_favorites_only", False)))
+        self.favorites_only.setChecked(
+            bool(self.config.get("ui.command_favorites_only", False))
+        )
         self._rebuild_command_catalog()
         command_layout.addWidget(self.command_catalog)
         left_layout.addWidget(command_group, 1)
@@ -964,7 +1048,9 @@ class MainWindow(QMainWindow):
         self.command_details = QTextEdit()
         self.command_details.setObjectName("commandDetails")
         self.command_details.setReadOnly(True)
-        self.command_details.setPlaceholderText("Selectionnez une commande pour voir sa description detaillee.")
+        self.command_details.setPlaceholderText(
+            "Selectionnez une commande pour voir sa description detaillee."
+        )
         self.command_details.setMinimumHeight(180)
         self.command_details.setMaximumHeight(320)
         details_layout.addWidget(self.command_details)
@@ -1015,10 +1101,14 @@ class MainWindow(QMainWindow):
         batch_options.addWidget(QLabel("Timeout(s)"))
         self.batch_timeout_spin = QSpinBox()
         self.batch_timeout_spin.setRange(5, 900)
-        self.batch_timeout_spin.setValue(int(self.config.get("ui.batch_timeout_s", 120)))
+        self.batch_timeout_spin.setValue(
+            int(self.config.get("ui.batch_timeout_s", 120))
+        )
         batch_options.addWidget(self.batch_timeout_spin)
         self.batch_stop_on_error = QCheckBox("Stop on first error")
-        self.batch_stop_on_error.setChecked(bool(self.config.get("ui.batch_stop_on_error", False)))
+        self.batch_stop_on_error.setChecked(
+            bool(self.config.get("ui.batch_stop_on_error", False))
+        )
         batch_options.addWidget(self.batch_stop_on_error)
         batch_options.addStretch()
         batch_layout.addLayout(batch_options)
@@ -1026,9 +1116,13 @@ class MainWindow(QMainWindow):
         self.batch_queue_list.setObjectName("batchQueue")
         self.batch_queue_list.setMinimumHeight(100)
         self.batch_queue_list.setMaximumHeight(200)
-        self.batch_queue_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.batch_queue_list.setDragDropMode(
+            QAbstractItemView.DragDropMode.InternalMove
+        )
         self.batch_queue_list.setDefaultDropAction(Qt.DropAction.MoveAction)
-        self.batch_queue_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.batch_queue_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
         self.batch_progress = QProgressBar()
         self.batch_progress.setMinimum(0)
         self.batch_progress.setMaximum(100)
@@ -1057,7 +1151,9 @@ class MainWindow(QMainWindow):
         self.logcat_btn.clicked.connect(lambda: self._run_terminal_command("logcat -d"))
         self.logcat_live_start_btn.clicked.connect(self._start_live_logcat)
         self.logcat_live_stop_btn.clicked.connect(self._stop_live_logcat)
-        self.command_filter_box.currentTextChanged.connect(self._rebuild_command_catalog)
+        self.command_filter_box.currentTextChanged.connect(
+            self._rebuild_command_catalog
+        )
         self.command_search.textChanged.connect(self._rebuild_command_catalog)
         self.favorites_only.toggled.connect(self._rebuild_command_catalog)
         self.favorite_toggle_btn.clicked.connect(self._toggle_selected_favorite)
@@ -1126,8 +1222,12 @@ class MainWindow(QMainWindow):
         self.remote_device_box.addItem("Aucun appareil", "")
         top.addWidget(self.remote_device_box)
         top.addWidget(QLabel("scrcpy"))
-        self.scrcpy_path_input = QLineEdit(str(self.config.get("app.scrcpy_bin", "scrcpy")))
-        self.scrcpy_path_input.setPlaceholderText("Binaire scrcpy (ex: scrcpy ou /usr/bin/scrcpy)")
+        self.scrcpy_path_input = QLineEdit(
+            str(self.config.get("app.scrcpy_bin", "scrcpy"))
+        )
+        self.scrcpy_path_input.setPlaceholderText(
+            "Binaire scrcpy (ex: scrcpy ou /usr/bin/scrcpy)"
+        )
         self.scrcpy_detect_btn = QPushButton("Verifier")
         self.scrcpy_detect_btn.setObjectName("ghostBtn")
         self.scrcpy_start_btn = QPushButton("Start Remote")
@@ -1153,12 +1253,16 @@ class MainWindow(QMainWindow):
         opts.addWidget(QLabel("Bitrate(M)"))
         self.scrcpy_bitrate = QSpinBox()
         self.scrcpy_bitrate.setRange(1, 80)
-        self.scrcpy_bitrate.setValue(int(self.config.get("remote.scrcpy_bitrate_m", 12)))
+        self.scrcpy_bitrate.setValue(
+            int(self.config.get("remote.scrcpy_bitrate_m", 12))
+        )
         opts.addWidget(self.scrcpy_bitrate)
         opts.addWidget(QLabel("Max-size"))
         self.scrcpy_max_size = QSpinBox()
         self.scrcpy_max_size.setRange(0, 4096)
-        self.scrcpy_max_size.setValue(int(self.config.get("remote.scrcpy_max_size", 1280)))
+        self.scrcpy_max_size.setValue(
+            int(self.config.get("remote.scrcpy_max_size", 1280))
+        )
         self.scrcpy_max_size.setSpecialValueText("auto")
         opts.addWidget(self.scrcpy_max_size)
         opts.addWidget(QLabel("FPS"))
@@ -1173,19 +1277,33 @@ class MainWindow(QMainWindow):
         flags = QHBoxLayout()
         flags.setSpacing(8)
         self.scrcpy_no_audio = QCheckBox("No audio")
-        self.scrcpy_no_audio.setChecked(bool(self.config.get("remote.scrcpy_no_audio", True)))
+        self.scrcpy_no_audio.setChecked(
+            bool(self.config.get("remote.scrcpy_no_audio", True))
+        )
         self.scrcpy_fullscreen = QCheckBox("Fullscreen")
-        self.scrcpy_fullscreen.setChecked(bool(self.config.get("remote.scrcpy_fullscreen", False)))
+        self.scrcpy_fullscreen.setChecked(
+            bool(self.config.get("remote.scrcpy_fullscreen", False))
+        )
         self.scrcpy_always_on_top = QCheckBox("Always on top")
-        self.scrcpy_always_on_top.setChecked(bool(self.config.get("remote.scrcpy_always_on_top", False)))
+        self.scrcpy_always_on_top.setChecked(
+            bool(self.config.get("remote.scrcpy_always_on_top", False))
+        )
         self.scrcpy_turn_screen_off = QCheckBox("Turn screen off")
-        self.scrcpy_turn_screen_off.setChecked(bool(self.config.get("remote.scrcpy_turn_screen_off", False)))
+        self.scrcpy_turn_screen_off.setChecked(
+            bool(self.config.get("remote.scrcpy_turn_screen_off", False))
+        )
         self.scrcpy_stay_awake = QCheckBox("Stay awake")
-        self.scrcpy_stay_awake.setChecked(bool(self.config.get("remote.scrcpy_stay_awake", False)))
+        self.scrcpy_stay_awake.setChecked(
+            bool(self.config.get("remote.scrcpy_stay_awake", False))
+        )
         self.scrcpy_show_touches = QCheckBox("Show touches")
-        self.scrcpy_show_touches.setChecked(bool(self.config.get("remote.scrcpy_show_touches", False)))
+        self.scrcpy_show_touches.setChecked(
+            bool(self.config.get("remote.scrcpy_show_touches", False))
+        )
         self.scrcpy_no_control = QCheckBox("View only")
-        self.scrcpy_no_control.setChecked(bool(self.config.get("remote.scrcpy_no_control", False)))
+        self.scrcpy_no_control.setChecked(
+            bool(self.config.get("remote.scrcpy_no_control", False))
+        )
         for w in (
             self.scrcpy_no_audio,
             self.scrcpy_fullscreen,
@@ -1201,8 +1319,12 @@ class MainWindow(QMainWindow):
 
         extra_row = QHBoxLayout()
         extra_row.addWidget(QLabel("Args extra"))
-        self.scrcpy_extra_args = QLineEdit(str(self.config.get("remote.scrcpy_extra_args", "")))
-        self.scrcpy_extra_args.setPlaceholderText("Ex: --prefer-text --window-borderless")
+        self.scrcpy_extra_args = QLineEdit(
+            str(self.config.get("remote.scrcpy_extra_args", ""))
+        )
+        self.scrcpy_extra_args.setPlaceholderText(
+            "Ex: --prefer-text --window-borderless"
+        )
         extra_row.addWidget(self.scrcpy_extra_args, 1)
         self.scrcpy_status_label = QLabel("Etat: inactif")
         self.scrcpy_status_label.setObjectName("deviceBadge")
@@ -1238,9 +1360,13 @@ class MainWindow(QMainWindow):
 
         self.remote_targets_list = QListWidget()
         self.remote_targets_list.setObjectName("remoteTargetsList")
-        self.remote_targets_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.remote_targets_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.NoSelection
+        )
         self.remote_targets_list.setMaximumHeight(112)
-        self.remote_targets_list.setToolTip("Appareils cibles quand le mode 'Selection multiple' est active.")
+        self.remote_targets_list.setToolTip(
+            "Appareils cibles quand le mode 'Selection multiple' est active."
+        )
         actions_layout.addWidget(self.remote_targets_list)
 
         nav_row = QHBoxLayout()
@@ -1288,24 +1414,48 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(tab, "Remote")
 
-        self.remote_center_refresh_btn.clicked.connect(self._refresh_remote_control_center)
+        self.remote_center_refresh_btn.clicked.connect(
+            self._refresh_remote_control_center
+        )
         self.scrcpy_detect_btn.clicked.connect(self._detect_scrcpy)
         self.scrcpy_start_btn.clicked.connect(self._start_scrcpy_remote)
         self.scrcpy_start_all_btn.clicked.connect(self._start_scrcpy_remote_all)
         self.scrcpy_stop_btn.clicked.connect(self._stop_scrcpy_remote)
         self.scrcpy_stop_all_btn.clicked.connect(self._stop_all_scrcpy_remote)
-        self.remote_action_scope_box.currentIndexChanged.connect(self._save_remote_action_scope)
-        self.remote_targets_select_all_btn.clicked.connect(lambda: self._toggle_all_remote_targets(True))
-        self.remote_targets_clear_btn.clicked.connect(lambda: self._toggle_all_remote_targets(False))
+        self.remote_action_scope_box.currentIndexChanged.connect(
+            self._save_remote_action_scope
+        )
+        self.remote_targets_select_all_btn.clicked.connect(
+            lambda: self._toggle_all_remote_targets(True)
+        )
+        self.remote_targets_clear_btn.clicked.connect(
+            lambda: self._toggle_all_remote_targets(False)
+        )
         self.remote_targets_list.itemChanged.connect(self._save_remote_action_scope)
-        self.remote_back_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_BACK"))
-        self.remote_home_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_HOME"))
-        self.remote_recent_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_APP_SWITCH"))
-        self.remote_power_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_POWER"))
-        self.remote_vol_up_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_VOLUME_UP"))
-        self.remote_vol_down_btn.clicked.connect(lambda: self._remote_keyevent("KEYCODE_VOLUME_DOWN"))
-        self.remote_notif_btn.clicked.connect(lambda: self._remote_shell("cmd statusbar expand-notifications"))
-        self.remote_quick_settings_btn.clicked.connect(lambda: self._remote_shell("cmd statusbar expand-settings"))
+        self.remote_back_btn.clicked.connect(
+            lambda: self._remote_keyevent("KEYCODE_BACK")
+        )
+        self.remote_home_btn.clicked.connect(
+            lambda: self._remote_keyevent("KEYCODE_HOME")
+        )
+        self.remote_recent_btn.clicked.connect(
+            lambda: self._remote_keyevent("KEYCODE_APP_SWITCH")
+        )
+        self.remote_power_btn.clicked.connect(
+            lambda: self._remote_keyevent("KEYCODE_POWER")
+        )
+        self.remote_vol_up_btn.clicked.connect(
+            lambda: self._remote_keyevent("KEYCODE_VOLUME_UP")
+        )
+        self.remote_vol_down_btn.clicked.connect(
+            lambda: self._remote_keyevent("KEYCODE_VOLUME_DOWN")
+        )
+        self.remote_notif_btn.clicked.connect(
+            lambda: self._remote_shell("cmd statusbar expand-notifications")
+        )
+        self.remote_quick_settings_btn.clicked.connect(
+            lambda: self._remote_shell("cmd statusbar expand-settings")
+        )
         self.remote_send_text_btn.clicked.connect(self._remote_send_text)
         self.remote_text_input.returnPressed.connect(self._remote_send_text)
         self.remote_wakeup_unlock_btn.clicked.connect(self._remote_wakeup_unlock)
@@ -1313,15 +1463,21 @@ class MainWindow(QMainWindow):
         self._refresh_remote_control_center()
 
     def _save_command_options(self) -> None:
-        self.config.set("ui.confirm_critical_commands", bool(self.confirm_critical_box.isChecked()))
-        self.config.set("ui.logcat_auto_scroll", bool(self.logcat_autoscroll_box.isChecked()))
+        self.config.set(
+            "ui.confirm_critical_commands", bool(self.confirm_critical_box.isChecked())
+        )
+        self.config.set(
+            "ui.logcat_auto_scroll", bool(self.logcat_autoscroll_box.isChecked())
+        )
         self.config.save()
 
     def _save_batch_options(self) -> None:
         self.config.set("ui.batch_workers", int(self.batch_workers_spin.value()))
         self.config.set("ui.batch_retry", int(self.batch_retry_spin.value()))
         self.config.set("ui.batch_timeout_s", int(self.batch_timeout_spin.value()))
-        self.config.set("ui.batch_stop_on_error", bool(self.batch_stop_on_error.isChecked()))
+        self.config.set(
+            "ui.batch_stop_on_error", bool(self.batch_stop_on_error.isChecked())
+        )
         self.config.save()
 
     def _root_state_from_requirement(self, root_required: str) -> str:
@@ -1364,10 +1520,14 @@ class MainWindow(QMainWindow):
     def _save_favorite_commands(self) -> None:
         self._commands_config_file.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "favorites": [{"name": cmd, "command": cmd} for cmd in sorted(self._favorite_commands)],
+            "favorites": [
+                {"name": cmd, "command": cmd} for cmd in sorted(self._favorite_commands)
+            ],
             "custom": [],
         }
-        self._commands_config_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        self._commands_config_file.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     def _toggle_selected_favorite(self) -> None:
         item = self.command_catalog.currentItem()
@@ -1386,11 +1546,27 @@ class MainWindow(QMainWindow):
         self._save_favorite_commands()
         self._rebuild_command_catalog()
 
-    def _grouped_command_entries(self) -> dict[str, list[tuple[str, str, str, str, tuple[str, ...]]]]:
+    def _grouped_command_entries(
+        self,
+    ) -> dict[str, list[tuple[str, str, str, str, tuple[str, ...]]]]:
         grouped: dict[str, list[tuple[str, str, str, str, tuple[str, ...]]]] = {}
-        for _key, label, name, command, root_state, description, placeholders in self._command_entries:
+        for (
+            _key,
+            label,
+            name,
+            command,
+            root_state,
+            description,
+            placeholders,
+        ) in self._command_entries:
             grouped.setdefault(label, []).append(
-                (name, command, root_state, description or "Aucune description disponible.", placeholders)
+                (
+                    name,
+                    command,
+                    root_state,
+                    description or "Aucune description disponible.",
+                    placeholders,
+                )
             )
         return grouped
 
@@ -1413,7 +1589,9 @@ class MainWindow(QMainWindow):
                 lines.append(f"  - Risque: `{risk}`")
                 lines.append(f"  - Domaine: `{domain}`")
                 lines.append(f"  - Commande: `adb {command}`")
-                lines.append(f"  - Parametres: {', '.join(placeholders) if placeholders else 'aucun'}")
+                lines.append(
+                    f"  - Parametres: {', '.join(placeholders) if placeholders else 'aucun'}"
+                )
                 lines.append(f"  - Description: {description}")
                 lines.append(f"  - Astuce: {self._command_usage_tip(command)}")
             lines.append("")
@@ -1487,9 +1665,21 @@ class MainWindow(QMainWindow):
         return True
 
     def _rebuild_command_catalog(self) -> None:
-        selected = self.command_filter_box.currentText() if hasattr(self, "command_filter_box") else "Toutes"
-        search_text = self.command_search.text().strip().lower() if hasattr(self, "command_search") else ""
-        favorites_only = bool(self.favorites_only.isChecked()) if hasattr(self, "favorites_only") else False
+        selected = (
+            self.command_filter_box.currentText()
+            if hasattr(self, "command_filter_box")
+            else "Toutes"
+        )
+        search_text = (
+            self.command_search.text().strip().lower()
+            if hasattr(self, "command_search")
+            else ""
+        )
+        favorites_only = (
+            bool(self.favorites_only.isChecked())
+            if hasattr(self, "favorites_only")
+            else False
+        )
         self.config.set("ui.command_root_filter", selected)
         self.config.set("ui.command_search", search_text)
         self.config.set("ui.command_favorites_only", favorites_only)
@@ -1497,7 +1687,15 @@ class MainWindow(QMainWindow):
         self.command_catalog.clear()
 
         grouped: dict[str, list[tuple[str, str, str, str]]] = {}
-        for _key, label, name, command, root_state, description, placeholders in self._command_entries:
+        for (
+            _key,
+            label,
+            name,
+            command,
+            root_state,
+            description,
+            placeholders,
+        ) in self._command_entries:
             if not self._passes_root_filter(root_state, selected):
                 continue
             if favorites_only and command not in self._favorite_commands:
@@ -1505,7 +1703,9 @@ class MainWindow(QMainWindow):
             haystack = f"{label} {name} {command} {description}".lower()
             if search_text and search_text not in haystack:
                 continue
-            grouped.setdefault(label, []).append((name, command, root_state, description, placeholders))
+            grouped.setdefault(label, []).append(
+                (name, command, root_state, description, placeholders)
+            )
 
         for label, rows in grouped.items():
             header = QListWidgetItem(f"[{label}]")
@@ -1515,8 +1715,14 @@ class MainWindow(QMainWindow):
             for name, command, root_state, description, placeholders in rows:
                 favorite = "★ " if command in self._favorite_commands else "  "
                 risk = self._command_risk_level(command, root_state)
-                risk_short = {"critique": "CRIT", "attention": "WARN", "safe": "SAFE"}.get(risk, "INFO")
-                row = QListWidgetItem(f"{favorite}{name} [{root_state} | {risk_short}] :: {command}")
+                risk_short = {
+                    "critique": "CRIT",
+                    "attention": "WARN",
+                    "safe": "SAFE",
+                }.get(risk, "INFO")
+                row = QListWidgetItem(
+                    f"{favorite}{name} [{root_state} | {risk_short}] :: {command}"
+                )
                 row.setForeground(self._risk_color(risk, root_state))
                 row.setData(Qt.ItemDataRole.UserRole, command)
                 row.setData(
@@ -1533,13 +1739,19 @@ class MainWindow(QMainWindow):
                     },
                 )
                 placeholder_hint = ", ".join(placeholders) if placeholders else "aucun"
-                row.setToolTip(f"{description}\nRoot: {root_state}\nParametres: {placeholder_hint}")
+                row.setToolTip(
+                    f"{description}\nRoot: {root_state}\nParametres: {placeholder_hint}"
+                )
                 self.command_catalog.addItem(row)
         if hasattr(self, "command_details"):
             self.command_details.clear()
-            self.command_details.setPlainText("Selectionnez une commande pour voir sa description detaillee.")
+            self.command_details.setPlainText(
+                "Selectionnez une commande pour voir sa description detaillee."
+            )
 
-    def _on_command_selected(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
+    def _on_command_selected(
+        self, current: QListWidgetItem | None, _previous: QListWidgetItem | None
+    ) -> None:
         if current is None:
             self.command_details.clear()
             return
@@ -1548,9 +1760,17 @@ class MainWindow(QMainWindow):
             self.command_details.clear()
             return
         risk = str(meta.get("risk", "safe"))
-        risk_label = {"critique": "Critique", "attention": "Attention", "safe": "Safe"}.get(risk, risk)
+        risk_label = {
+            "critique": "Critique",
+            "attention": "Attention",
+            "safe": "Safe",
+        }.get(risk, risk)
         risk_color = self._risk_color_hex(risk)
-        placeholders = ", ".join(meta.get("placeholders", [])) if meta.get("placeholders") else "aucun"
+        placeholders = (
+            ", ".join(meta.get("placeholders", []))
+            if meta.get("placeholders")
+            else "aucun"
+        )
         tip = self._command_usage_tip(str(meta.get("command", "")))
         details_html = (
             "<div style='font-family: Segoe UI; line-height:1.45;'>"
@@ -1623,7 +1843,9 @@ class MainWindow(QMainWindow):
         self.captures_preview = QLabel("Apercu capture")
         self.captures_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.captures_preview.setMinimumSize(480, 320)
-        self.captures_preview.setStyleSheet("border: 1px solid #334155; border-radius: 8px;")
+        self.captures_preview.setStyleSheet(
+            "border: 1px solid #334155; border-radius: 8px;"
+        )
         right_layout.addWidget(self.captures_preview)
 
         self.video_widget = QVideoWidget()
@@ -1698,7 +1920,20 @@ class MainWindow(QMainWindow):
         self.audit_device_filter.addItem("Tous devices", "")
         self.audit_type_filter = QComboBox()
         self.audit_type_filter.addItems(
-            ["Tous types", "session", "device", "file", "app", "system", "debug", "capture", "batch", "script", "snapshot", "error"]
+            [
+                "Tous types",
+                "session",
+                "device",
+                "file",
+                "app",
+                "system",
+                "debug",
+                "capture",
+                "batch",
+                "script",
+                "snapshot",
+                "error",
+            ]
         )
         self.audit_date_from = QLineEdit()
         self.audit_date_from.setPlaceholderText("Date from YYYY-MM-DD")
@@ -1711,8 +1946,12 @@ class MainWindow(QMainWindow):
         left_l.addLayout(filters)
 
         self.audit_table = QTableWidget(0, 6)
-        self.audit_table.setHorizontalHeaderLabels(["Timestamp", "Device", "Type", "Action", "Status", "Message"])
-        self.audit_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.audit_table.setHorizontalHeaderLabels(
+            ["Timestamp", "Device", "Type", "Action", "Status", "Message"]
+        )
+        self.audit_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
         self.audit_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         left_l.addWidget(self.audit_table, 1)
         self.audit_payload_text = QTextEdit()
@@ -1753,7 +1992,9 @@ class MainWindow(QMainWindow):
         right_l.addLayout(snap_sel)
         self.snapshot_diff_text = QTextEdit()
         self.snapshot_diff_text.setReadOnly(True)
-        self.snapshot_diff_text.setPlaceholderText("Diff snapshot (packages, stockage, CPU/memoire, props systeme, etat device)...")
+        self.snapshot_diff_text.setPlaceholderText(
+            "Diff snapshot (packages, stockage, CPU/memoire, props systeme, etat device)..."
+        )
         right_l.addWidget(self.snapshot_diff_text, 1)
 
         split.addWidget(left)
@@ -1791,7 +2032,15 @@ class MainWindow(QMainWindow):
         self.transfer_direction.addItems(["device -> host", "host -> device"])
         self.transfer_preset = QComboBox()
         self.transfer_preset.addItems(
-            ["Custom folders", "Photos & Videos", "Documents", "Downloads", "DCIM", "Screenshots", "Export APK only"]
+            [
+                "Custom folders",
+                "Photos & Videos",
+                "Documents",
+                "Downloads",
+                "DCIM",
+                "Screenshots",
+                "Export APK only",
+            ]
         )
         self.transfer_source = QLineEdit("/sdcard")
         self.transfer_destination = QLineEdit(str(self.base_dir / "transfers"))
@@ -1822,7 +2071,14 @@ class MainWindow(QMainWindow):
         action_row = QHBoxLayout()
         self.transfer_dry_run = QCheckBox("Dry-run (preview uniquement)")
         self.sync_mode_box = QComboBox()
-        self.sync_mode_box.addItems(["copy_missing_only", "update_newer_only", "skip_duplicates", "mirror_selected"])
+        self.sync_mode_box.addItems(
+            [
+                "copy_missing_only",
+                "update_newer_only",
+                "skip_duplicates",
+                "mirror_selected",
+            ]
+        )
         self.sync_preview_btn = QPushButton("Preview Sync")
         self.sync_run_btn = QPushButton("Run Sync")
         self.sync_preview_btn.setObjectName("ghostBtn")
@@ -1844,14 +2100,26 @@ class MainWindow(QMainWindow):
         layout.addLayout(action_row)
 
         self.transfer_queue_table = QTableWidget(0, 7)
-        self.transfer_queue_table.setHorizontalHeaderLabels(["ID", "Direction", "Preset", "Source", "Destination", "Dry-run", "Etat"])
-        self.transfer_queue_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.transfer_queue_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.transfer_queue_table.setHorizontalHeaderLabels(
+            ["ID", "Direction", "Preset", "Source", "Destination", "Dry-run", "Etat"]
+        )
+        self.transfer_queue_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.transfer_queue_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
         layout.addWidget(self.transfer_queue_table, 1)
         self.sync_preview_table = QTableWidget(0, 5)
-        self.sync_preview_table.setHorizontalHeaderLabels(["RelPath", "Decision", "Reason", "SrcSize", "DstSize"])
-        self.sync_preview_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.sync_preview_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.sync_preview_table.setHorizontalHeaderLabels(
+            ["RelPath", "Decision", "Reason", "SrcSize", "DstSize"]
+        )
+        self.sync_preview_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.sync_preview_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
         self.sync_preview_table.setMaximumHeight(180)
         layout.addWidget(self.sync_preview_table)
 
@@ -1863,12 +2131,16 @@ class MainWindow(QMainWindow):
 
         self.transfer_log = QTextEdit()
         self.transfer_log.setReadOnly(True)
-        self.transfer_log.setPlaceholderText("Logs de transfert, verifications et remediations...")
+        self.transfer_log.setPlaceholderText(
+            "Logs de transfert, verifications et remediations..."
+        )
         self.transfer_log.setMaximumHeight(190)
         layout.addWidget(self.transfer_log)
 
         self.tabs.addTab(tab, "Transfers")
-        self.transfer_preset.currentTextChanged.connect(self._on_transfer_preset_changed)
+        self.transfer_preset.currentTextChanged.connect(
+            self._on_transfer_preset_changed
+        )
         self.transfer_pick_source_btn.clicked.connect(self._pick_transfer_source)
         self.transfer_pick_dest_btn.clicked.connect(self._pick_transfer_destination)
         self.transfer_add_btn.clicked.connect(self._add_transfer_task)
@@ -1879,7 +2151,9 @@ class MainWindow(QMainWindow):
         self.sync_run_btn.clicked.connect(self._run_smart_sync)
         self.transfer_save_preset_btn.clicked.connect(self._save_transfer_preset)
         self.transfer_delete_preset_btn.clicked.connect(self._delete_transfer_preset)
-        self.transfer_saved_presets.currentIndexChanged.connect(self._load_selected_transfer_preset)
+        self.transfer_saved_presets.currentIndexChanged.connect(
+            self._load_selected_transfer_preset
+        )
         self._refresh_transfer_saved_presets()
         self._on_transfer_preset_changed(self.transfer_preset.currentText())
 
@@ -1889,11 +2163,15 @@ class MainWindow(QMainWindow):
             Toast(self, "Aucun appareil actif")
             return
         direction_ui = self.transfer_direction.currentText().strip()
-        direction = "device_to_host" if direction_ui == "device -> host" else "host_to_device"
+        direction = (
+            "device_to_host" if direction_ui == "device -> host" else "host_to_device"
+        )
         src = self.transfer_source.text().strip()
         dst = self.transfer_destination.text().strip()
         mode = self.sync_mode_box.currentText().strip()
-        result = self.sync_module.preview(serial=serial, direction=direction, source=src, destination=dst, mode=mode)
+        result = self.sync_module.preview(
+            serial=serial, direction=direction, source=src, destination=dst, mode=mode
+        )
         self._sync_preview_data = result
         if not result.get("ok"):
             self.transfer_log.append(f"[sync-preview] ERROR: {result.get('error', '')}")
@@ -1904,7 +2182,9 @@ class MainWindow(QMainWindow):
         self.sync_preview_table.setRowCount(min(len(items), 400))
         for i, raw in enumerate(items[:400]):
             row = raw if isinstance(raw, dict) else {}
-            self.sync_preview_table.setItem(i, 0, QTableWidgetItem(str(row.get("rel_path", ""))))
+            self.sync_preview_table.setItem(
+                i, 0, QTableWidgetItem(str(row.get("rel_path", "")))
+            )
             decision = str(row.get("decision", ""))
             decision_item = QTableWidgetItem(decision)
             if decision in {"copy", "update"}:
@@ -1914,11 +2194,19 @@ class MainWindow(QMainWindow):
             else:
                 decision_item.setForeground(QColor("#93c5fd"))
             self.sync_preview_table.setItem(i, 1, decision_item)
-            self.sync_preview_table.setItem(i, 2, QTableWidgetItem(str(row.get("reason", ""))))
-            self.sync_preview_table.setItem(i, 3, QTableWidgetItem(str(row.get("src_size", ""))))
-            self.sync_preview_table.setItem(i, 4, QTableWidgetItem(str(row.get("dst_size", ""))))
+            self.sync_preview_table.setItem(
+                i, 2, QTableWidgetItem(str(row.get("reason", "")))
+            )
+            self.sync_preview_table.setItem(
+                i, 3, QTableWidgetItem(str(row.get("src_size", "")))
+            )
+            self.sync_preview_table.setItem(
+                i, 4, QTableWidgetItem(str(row.get("dst_size", "")))
+            )
         summary = result.get("summary", {})
-        self.transfer_log.append(f"[sync-preview] {json.dumps(summary, ensure_ascii=False)}")
+        self.transfer_log.append(
+            f"[sync-preview] {json.dumps(summary, ensure_ascii=False)}"
+        )
 
     def _run_smart_sync(self) -> None:
         serial = self._selected_serial()
@@ -1932,7 +2220,9 @@ class MainWindow(QMainWindow):
         if not preview.get("ok"):
             return
         result = self.sync_module.execute(serial=serial, preview=preview)
-        self.transfer_log.append(f"[sync-run] executed={result.get('executed', 0)} errors={len(result.get('errors', []))}")
+        self.transfer_log.append(
+            f"[sync-run] executed={result.get('executed', 0)} errors={len(result.get('errors', []))}"
+        )
         for err in result.get("errors", [])[:30]:
             self.transfer_log.append(f"[sync-run] ERR {err}")
         status = "ok" if result.get("ok") else "warning"
@@ -1967,14 +2257,18 @@ class MainWindow(QMainWindow):
         self.transfer_saved_presets.blockSignals(False)
 
     def _save_transfer_preset(self) -> None:
-        name, ok = QInputDialog.getText(self, "Sauver preset transfert", "Nom du preset")
+        name, ok = QInputDialog.getText(
+            self, "Sauver preset transfert", "Nom du preset"
+        )
         if not ok or not name.strip():
             return
         preset_name = name.strip()
         raw = self.config.get("transfer.saved_presets", {})
         presets = dict(raw) if isinstance(raw, dict) else {}
         direction_ui = self.transfer_direction.currentText().strip()
-        direction = "device_to_host" if direction_ui == "device -> host" else "host_to_device"
+        direction = (
+            "device_to_host" if direction_ui == "device -> host" else "host_to_device"
+        )
         presets[preset_name] = {
             "direction": direction,
             "preset_type": self.transfer_preset.currentText().strip(),
@@ -2014,13 +2308,19 @@ class MainWindow(QMainWindow):
         if not isinstance(item, dict):
             return
         direction = str(item.get("direction", "device_to_host"))
-        self.transfer_direction.setCurrentText("device -> host" if direction == "device_to_host" else "host -> device")
+        self.transfer_direction.setCurrentText(
+            "device -> host" if direction == "device_to_host" else "host -> device"
+        )
         preset_type = str(item.get("preset_type", "Custom folders"))
         idx = self.transfer_preset.findText(preset_type)
         if idx >= 0:
             self.transfer_preset.setCurrentIndex(idx)
-        self.transfer_source.setText(str(item.get("source", self.transfer_source.text())))
-        self.transfer_destination.setText(str(item.get("destination", self.transfer_destination.text())))
+        self.transfer_source.setText(
+            str(item.get("source", self.transfer_source.text()))
+        )
+        self.transfer_destination.setText(
+            str(item.get("destination", self.transfer_destination.text()))
+        )
         self.transfer_dry_run.setChecked(bool(item.get("dry_run", False)))
 
     def _build_device_health_tab(self) -> None:
@@ -2064,13 +2364,21 @@ class MainWindow(QMainWindow):
 
         self.health_sections_text = QTextEdit()
         self.health_sections_text.setReadOnly(True)
-        self.health_sections_text.setPlaceholderText("Resume par section (battery, storage, cpu/memory, thermal, connectivity, adb stability...)")
+        self.health_sections_text.setPlaceholderText(
+            "Resume par section (battery, storage, cpu/memory, thermal, connectivity, adb stability...)"
+        )
         left_l.addWidget(self.health_sections_text)
 
         self.health_findings_table = QTableWidget(0, 6)
-        self.health_findings_table.setHorizontalHeaderLabels(["Category", "Title", "Severity", "Status", "Evidence", "Remediation"])
-        self.health_findings_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.health_findings_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.health_findings_table.setHorizontalHeaderLabels(
+            ["Category", "Title", "Severity", "Status", "Evidence", "Remediation"]
+        )
+        self.health_findings_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.health_findings_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
         right_l.addWidget(self.health_findings_table, 1)
 
         self.health_finding_raw = QTextEdit()
@@ -2107,16 +2415,28 @@ class MainWindow(QMainWindow):
         self.health_timeline_chart = HealthTimelineChart()
         history_l.addWidget(self.health_timeline_chart)
         self.health_timeline_table = QTableWidget(0, 5)
-        self.health_timeline_table.setHorizontalHeaderLabels(["Timestamp", "Device", "Score", "Status", "Summary"])
-        self.health_timeline_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.health_timeline_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.health_timeline_table.setHorizontalHeaderLabels(
+            ["Timestamp", "Device", "Score", "Status", "Summary"]
+        )
+        self.health_timeline_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.health_timeline_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
         self.health_timeline_table.setMaximumHeight(220)
         history_l.addWidget(self.health_timeline_table)
 
         self.health_fleet_table = QTableWidget(0, 5)
-        self.health_fleet_table.setHorizontalHeaderLabels(["Device", "Transport", "Last Score", "Last Status", "Last Check"])
-        self.health_fleet_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.health_fleet_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.health_fleet_table.setHorizontalHeaderLabels(
+            ["Device", "Transport", "Last Score", "Last Status", "Last Check"]
+        )
+        self.health_fleet_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.health_fleet_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
         self.health_fleet_table.setMaximumHeight(180)
         history_l.addWidget(self.health_fleet_table)
         layout.addWidget(history_box)
@@ -2126,11 +2446,17 @@ class MainWindow(QMainWindow):
         self.health_refresh_all_btn.clicked.connect(self._run_device_health_checks_all)
         self.health_export_json_btn2.clicked.connect(self._export_device_health_json)
         self.health_export_html_btn2.clicked.connect(self._export_device_health_html)
-        self.health_findings_table.itemSelectionChanged.connect(self._on_health_finding_selected)
+        self.health_findings_table.itemSelectionChanged.connect(
+            self._on_health_finding_selected
+        )
         self.health_history_refresh_btn.clicked.connect(self._refresh_health_timeline)
         self.health_history_export_btn.clicked.connect(self._export_health_timeline_csv)
-        self.health_timeline_device_filter.currentIndexChanged.connect(self._refresh_health_timeline)
-        self.health_timeline_date_from.textChanged.connect(self._refresh_health_timeline)
+        self.health_timeline_device_filter.currentIndexChanged.connect(
+            self._refresh_health_timeline
+        )
+        self.health_timeline_date_from.textChanged.connect(
+            self._refresh_health_timeline
+        )
         self.health_timeline_date_to.textChanged.connect(self._refresh_health_timeline)
         self._refresh_health_timeline()
 
@@ -2157,8 +2483,12 @@ class MainWindow(QMainWindow):
         ll.setContentsMargins(0, 0, 0, 0)
         rl.setContentsMargins(0, 0, 0, 0)
         self.workflow_list = QTableWidget(0, 4)
-        self.workflow_list.setHorizontalHeaderLabels(["Workflow", "Impact", "Last Status", "Last Run"])
-        self.workflow_list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.workflow_list.setHorizontalHeaderLabels(
+            ["Workflow", "Impact", "Last Status", "Last Run"]
+        )
+        self.workflow_list.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
         self.workflow_list.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         ll.addWidget(self.workflow_list)
 
@@ -2210,8 +2540,12 @@ class MainWindow(QMainWindow):
         top.addWidget(self.notify_clear_btn)
         layout.addLayout(top)
         self.notify_table = QTableWidget(0, 6)
-        self.notify_table.setHorizontalHeaderLabels(["Time", "Severity", "Category", "Device", "Title", "Message"])
-        self.notify_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.notify_table.setHorizontalHeaderLabels(
+            ["Time", "Severity", "Category", "Device", "Title", "Message"]
+        )
+        self.notify_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
         self.notify_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self.notify_table, 1)
         self.notify_details = QTextEdit()
@@ -2220,8 +2554,12 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.notify_details)
         self.tabs.addTab(tab, "Notifications")
 
-        self.notify_severity_filter.currentIndexChanged.connect(self._refresh_notifications_view)
-        self.notify_device_filter.currentIndexChanged.connect(self._refresh_notifications_view)
+        self.notify_severity_filter.currentIndexChanged.connect(
+            self._refresh_notifications_view
+        )
+        self.notify_device_filter.currentIndexChanged.connect(
+            self._refresh_notifications_view
+        )
         self.notify_unread_only.stateChanged.connect(self._refresh_notifications_view)
         self.notify_table.itemSelectionChanged.connect(self._on_notification_selected)
         self.notify_mark_read_btn.clicked.connect(self._mark_selected_notification_read)
@@ -2235,12 +2573,24 @@ class MainWindow(QMainWindow):
         self.workflow_list.setRowCount(len(workflows))
         for row, wf in enumerate(workflows):
             wid = str(wf.get("workflow_id", ""))
-            self.workflow_list.setItem(row, 0, QTableWidgetItem(str(wf.get("title", ""))))
-            self.workflow_list.setItem(row, 1, QTableWidgetItem(str(wf.get("impact", ""))))
-            history = [h for h in self._workflow_run_history if str(h.get("workflow_id", "")) == wid]
+            self.workflow_list.setItem(
+                row, 0, QTableWidgetItem(str(wf.get("title", "")))
+            )
+            self.workflow_list.setItem(
+                row, 1, QTableWidgetItem(str(wf.get("impact", "")))
+            )
+            history = [
+                h
+                for h in self._workflow_run_history
+                if str(h.get("workflow_id", "")) == wid
+            ]
             last = history[-1] if history else {}
-            self.workflow_list.setItem(row, 2, QTableWidgetItem(str(last.get("status", "never"))))
-            self.workflow_list.setItem(row, 3, QTableWidgetItem(str(last.get("finished_at", ""))))
+            self.workflow_list.setItem(
+                row, 2, QTableWidgetItem(str(last.get("status", "never")))
+            )
+            self.workflow_list.setItem(
+                row, 3, QTableWidgetItem(str(last.get("finished_at", "")))
+            )
             self.workflow_list.item(row, 0).setData(Qt.ItemDataRole.UserRole, wid)
         if workflows and self.workflow_list.currentRow() < 0:
             self.workflow_list.selectRow(0)
@@ -2280,7 +2630,9 @@ class MainWindow(QMainWindow):
             {"serial": serial, "workflow_id": str(wf.get("workflow_id", ""))},
         )
 
-    def _execute_workflow_sync(self, workflow: dict[str, Any], serial: str) -> dict[str, Any]:
+    def _execute_workflow_sync(
+        self, workflow: dict[str, Any], serial: str
+    ) -> dict[str, Any]:
         steps = workflow.get("steps", [])
         steps = steps if isinstance(steps, list) else []
         logs: list[str] = []
@@ -2294,11 +2646,17 @@ class MainWindow(QMainWindow):
                 if action == "refresh_devices":
                     self.device_manager.poll_async()
                 elif action == "device_inspector":
-                    self._device_inspector_data = self.inspector_module.inspect(serial, self._current_device_info())
+                    self._device_inspector_data = self.inspector_module.inspect(
+                        serial, self._current_device_info()
+                    )
                 elif action == "device_health":
-                    self._last_device_health_report = self.device_health_module.run(serial, self._current_device_info())
+                    self._last_device_health_report = self.device_health_module.run(
+                        serial, self._current_device_info()
+                    )
                 elif action == "capture_snapshot":
-                    snap = self.snapshot_module.capture_snapshot(serial, self._current_device_info())
+                    snap = self.snapshot_module.capture_snapshot(
+                        serial, self._current_device_info()
+                    )
                     self._snapshot_last_captured_file = str(snap.get("file", ""))
                 elif action == "queue_transfer_dcim":
                     task = self.transfer_module.make_task(
@@ -2358,9 +2716,13 @@ class MainWindow(QMainWindow):
                         item["status"] = str(res.get("status", "unknown"))
                         self._transfer_reports.append(res)
                 elif action == "adb_health":
-                    self._health_report = self.health_module.run(self._last_devices, serial)
+                    self._health_report = self.health_module.run(
+                        self._last_devices, serial
+                    )
                 elif action == "load_logcat_recent":
-                    _ = self.adb.run(["logcat", "-d", "-t", "200"], serial=serial, timeout=20)
+                    _ = self.adb.run(
+                        ["logcat", "-d", "-t", "200"], serial=serial, timeout=20
+                    )
                 elif action == "refresh_health_timeline":
                     pass
                 elif action == "export_transfer_report_auto":
@@ -2408,10 +2770,14 @@ class MainWindow(QMainWindow):
         severity = "" if severity == "all" else severity
         serial = str(self.notify_device_filter.currentData() or "").strip()
         unread = bool(self.notify_unread_only.isChecked())
-        rows = self.notifications_module.list(severity=severity, device_serial=serial, unread_only=unread, limit=800)
+        rows = self.notifications_module.list(
+            severity=severity, device_serial=serial, unread_only=unread, limit=800
+        )
         self.notify_table.setRowCount(len(rows))
         for r, row in enumerate(rows):
-            self.notify_table.setItem(r, 0, QTableWidgetItem(str(row.get("created_at", ""))))
+            self.notify_table.setItem(
+                r, 0, QTableWidgetItem(str(row.get("created_at", "")))
+            )
             sev_item = QTableWidgetItem(str(row.get("severity", "")))
             sev = str(row.get("severity", ""))
             if sev == "error":
@@ -2421,17 +2787,35 @@ class MainWindow(QMainWindow):
             else:
                 sev_item.setForeground(QColor("#93c5fd"))
             self.notify_table.setItem(r, 1, sev_item)
-            self.notify_table.setItem(r, 2, QTableWidgetItem(str(row.get("category", ""))))
-            self.notify_table.setItem(r, 3, QTableWidgetItem(str(row.get("device_serial", ""))))
+            self.notify_table.setItem(
+                r, 2, QTableWidgetItem(str(row.get("category", "")))
+            )
+            self.notify_table.setItem(
+                r, 3, QTableWidgetItem(str(row.get("device_serial", "")))
+            )
             self.notify_table.setItem(r, 4, QTableWidgetItem(str(row.get("title", ""))))
-            self.notify_table.setItem(r, 5, QTableWidgetItem(str(row.get("message", ""))))
-            self.notify_table.item(r, 0).setData(Qt.ItemDataRole.UserRole, int(row.get("id", 0)))
+            self.notify_table.setItem(
+                r, 5, QTableWidgetItem(str(row.get("message", "")))
+            )
+            self.notify_table.item(r, 0).setData(
+                Qt.ItemDataRole.UserRole, int(row.get("id", 0))
+            )
         self._refresh_notification_filters(rows)
         self._update_notifications_badge()
 
     def _refresh_notification_filters(self, rows: list[dict[str, Any]]) -> None:
-        current = str(self.notify_device_filter.currentData() or "") if hasattr(self, "notify_device_filter") else ""
-        serials = sorted({str(r.get("device_serial", "")).strip() for r in rows if str(r.get("device_serial", "")).strip()})
+        current = (
+            str(self.notify_device_filter.currentData() or "")
+            if hasattr(self, "notify_device_filter")
+            else ""
+        )
+        serials = sorted(
+            {
+                str(r.get("device_serial", "")).strip()
+                for r in rows
+                if str(r.get("device_serial", "")).strip()
+            }
+        )
         self.notify_device_filter.blockSignals(True)
         self.notify_device_filter.clear()
         self.notify_device_filter.addItem("all", "")
@@ -2509,7 +2893,9 @@ class MainWindow(QMainWindow):
         if preset == "Export APK only":
             self.transfer_direction.setCurrentText("device -> host")
             self.transfer_source.setText("/data/app")
-            self.transfer_destination.setText(str(self.base_dir / "transfers" / "apk_export"))
+            self.transfer_destination.setText(
+                str(self.base_dir / "transfers" / "apk_export")
+            )
             return
         if preset == "Custom folders":
             if direction == "device -> host":
@@ -2521,16 +2907,26 @@ class MainWindow(QMainWindow):
             return
         preset_sources = self.transfer_module.preset_sources(preset)
         if direction == "device -> host":
-            self.transfer_source.setText(preset_sources[0] if preset_sources else "/sdcard")
-            self.transfer_destination.setText(str(self.base_dir / "transfers" / preset.lower().replace(" ", "_")))
+            self.transfer_source.setText(
+                preset_sources[0] if preset_sources else "/sdcard"
+            )
+            self.transfer_destination.setText(
+                str(self.base_dir / "transfers" / preset.lower().replace(" ", "_"))
+            )
         else:
-            self.transfer_source.setText(str(self.base_dir / "transfers" / preset.lower().replace(" ", "_")))
+            self.transfer_source.setText(
+                str(self.base_dir / "transfers" / preset.lower().replace(" ", "_"))
+            )
             self.transfer_destination.setText("/sdcard/Download")
 
     def _pick_transfer_source(self) -> None:
         direction = self.transfer_direction.currentText().strip()
         if direction == "host -> device":
-            path = QFileDialog.getExistingDirectory(self, "Choisir dossier source", self.transfer_source.text().strip() or str(self.base_dir))
+            path = QFileDialog.getExistingDirectory(
+                self,
+                "Choisir dossier source",
+                self.transfer_source.text().strip() or str(self.base_dir),
+            )
             if path:
                 self.transfer_source.setText(path)
             return
@@ -2549,7 +2945,8 @@ class MainWindow(QMainWindow):
             path = QFileDialog.getExistingDirectory(
                 self,
                 "Choisir dossier destination",
-                self.transfer_destination.text().strip() or str(self.base_dir / "transfers"),
+                self.transfer_destination.text().strip()
+                or str(self.base_dir / "transfers"),
             )
             if path:
                 self.transfer_destination.setText(path)
@@ -2566,12 +2963,24 @@ class MainWindow(QMainWindow):
     def _refresh_transfer_queue_table(self) -> None:
         self.transfer_queue_table.setRowCount(len(self._transfer_queue))
         for row, item in enumerate(self._transfer_queue):
-            self.transfer_queue_table.setItem(row, 0, QTableWidgetItem(str(item.get("task_id", ""))))
-            self.transfer_queue_table.setItem(row, 1, QTableWidgetItem(str(item.get("direction", ""))))
-            self.transfer_queue_table.setItem(row, 2, QTableWidgetItem(str(item.get("preset", ""))))
-            self.transfer_queue_table.setItem(row, 3, QTableWidgetItem(str(item.get("source", ""))))
-            self.transfer_queue_table.setItem(row, 4, QTableWidgetItem(str(item.get("destination", ""))))
-            self.transfer_queue_table.setItem(row, 5, QTableWidgetItem("yes" if bool(item.get("dry_run")) else "no"))
+            self.transfer_queue_table.setItem(
+                row, 0, QTableWidgetItem(str(item.get("task_id", "")))
+            )
+            self.transfer_queue_table.setItem(
+                row, 1, QTableWidgetItem(str(item.get("direction", "")))
+            )
+            self.transfer_queue_table.setItem(
+                row, 2, QTableWidgetItem(str(item.get("preset", "")))
+            )
+            self.transfer_queue_table.setItem(
+                row, 3, QTableWidgetItem(str(item.get("source", "")))
+            )
+            self.transfer_queue_table.setItem(
+                row, 4, QTableWidgetItem(str(item.get("destination", "")))
+            )
+            self.transfer_queue_table.setItem(
+                row, 5, QTableWidgetItem("yes" if bool(item.get("dry_run")) else "no")
+            )
             status_item = QTableWidgetItem(str(item.get("status", "queued")))
             status = str(item.get("status", "")).lower()
             if status in {"error", "fail"}:
@@ -2588,7 +2997,9 @@ class MainWindow(QMainWindow):
             Toast(self, "Aucun appareil actif")
             return
         direction_ui = self.transfer_direction.currentText().strip()
-        direction = "device_to_host" if direction_ui == "device -> host" else "host_to_device"
+        direction = (
+            "device_to_host" if direction_ui == "device -> host" else "host_to_device"
+        )
         preset = self.transfer_preset.currentText().strip()
         source = self.transfer_source.text().strip()
         destination = self.transfer_destination.text().strip()
@@ -2626,7 +3037,9 @@ class MainWindow(QMainWindow):
             self._transfer_queue.append(row)
             created += 1
         self._refresh_transfer_queue_table()
-        self.transfer_log.append(f"[queue] {created} tache(s) ajoutees (preset={preset})")
+        self.transfer_log.append(
+            f"[queue] {created} tache(s) ajoutees (preset={preset})"
+        )
 
     def _clear_transfer_queue(self) -> None:
         if self._transfer_running:
@@ -2667,17 +3080,32 @@ class MainWindow(QMainWindow):
                 result = self.transfer_module.execute_task(task)
                 result["task_id"] = task.task_id
                 results.append(result)
-                self.bridge.command_done.emit(("transfer_progress", {"done": idx, "total": total, "result": result}))
+                self.bridge.command_done.emit(
+                    (
+                        "transfer_progress",
+                        {"done": idx, "total": total, "result": result},
+                    )
+                )
             return {"results": results, "total": total}
 
-        self._run_in_worker("transfer_queue_execute", _run_queue, {"serial": self._selected_serial() or ""})
+        self._run_in_worker(
+            "transfer_queue_execute",
+            _run_queue,
+            {"serial": self._selected_serial() or ""},
+        )
 
     def _export_transfer_report(self) -> None:
         if not self._transfer_reports:
             Toast(self, "Aucun rapport transfert")
             return
-        default = self.base_dir / "reports" / f"transfer_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        path, _ = QFileDialog.getSaveFileName(self, "Exporter rapport transfert", str(default), "JSON (*.json)")
+        default = (
+            self.base_dir
+            / "reports"
+            / f"transfer_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exporter rapport transfert", str(default), "JSON (*.json)"
+        )
         if not path:
             return
         payload = {
@@ -2687,13 +3115,23 @@ class MainWindow(QMainWindow):
             "summary": {
                 "total": len(self._transfer_reports),
                 "ok": sum(1 for r in self._transfer_reports if bool(r.get("ok"))),
-                "partial": sum(1 for r in self._transfer_reports if str(r.get("status", "")) == "partial"),
-                "error": sum(1 for r in self._transfer_reports if str(r.get("status", "")) in {"error", "fail"}),
+                "partial": sum(
+                    1
+                    for r in self._transfer_reports
+                    if str(r.get("status", "")) == "partial"
+                ),
+                "error": sum(
+                    1
+                    for r in self._transfer_reports
+                    if str(r.get("status", "")) in {"error", "fail"}
+                ),
             },
         }
         out = Path(path)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        out.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         html_path = out.with_suffix(".html")
         rows = []
         for rep in self._transfer_reports:
@@ -2766,8 +3204,12 @@ class MainWindow(QMainWindow):
         self.health_findings_table.setRowCount(len(findings))
         for row, finding in enumerate(findings):
             f = finding if isinstance(finding, dict) else {}
-            self.health_findings_table.setItem(row, 0, QTableWidgetItem(str(f.get("category", ""))))
-            self.health_findings_table.setItem(row, 1, QTableWidgetItem(str(f.get("title", ""))))
+            self.health_findings_table.setItem(
+                row, 0, QTableWidgetItem(str(f.get("category", "")))
+            )
+            self.health_findings_table.setItem(
+                row, 1, QTableWidgetItem(str(f.get("title", "")))
+            )
             sev_item = QTableWidgetItem(str(f.get("severity", "")))
             severity = str(f.get("severity", "")).lower()
             if severity == "high":
@@ -2786,8 +3228,12 @@ class MainWindow(QMainWindow):
             elif st == "pass":
                 status_item.setForeground(QColor("#86efac"))
             self.health_findings_table.setItem(row, 3, status_item)
-            self.health_findings_table.setItem(row, 4, QTableWidgetItem(str(f.get("evidence", ""))))
-            self.health_findings_table.setItem(row, 5, QTableWidgetItem(str(f.get("remediation", ""))))
+            self.health_findings_table.setItem(
+                row, 4, QTableWidgetItem(str(f.get("evidence", "")))
+            )
+            self.health_findings_table.setItem(
+                row, 5, QTableWidgetItem(str(f.get("remediation", "")))
+            )
         self._refresh_health_timeline()
 
     def _health_trend_label(self, scores: list[int]) -> str:
@@ -2808,11 +3254,25 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "health_timeline_table"):
             return
         serial = self._selected_serial() or ""
-        filter_serial = str(self.health_timeline_device_filter.currentData() or "").strip() if hasattr(self, "health_timeline_device_filter") else ""
+        filter_serial = (
+            str(self.health_timeline_device_filter.currentData() or "").strip()
+            if hasattr(self, "health_timeline_device_filter")
+            else ""
+        )
         target_serial = filter_serial or serial
-        timeline = self.audit_module.list_health_timeline(device_serial=target_serial or None, limit=500)
-        date_from = self._normalize_date_filter(self.health_timeline_date_from.text() if hasattr(self, "health_timeline_date_from") else "")
-        date_to = self._normalize_date_filter(self.health_timeline_date_to.text() if hasattr(self, "health_timeline_date_to") else "")
+        timeline = self.audit_module.list_health_timeline(
+            device_serial=target_serial or None, limit=500
+        )
+        date_from = self._normalize_date_filter(
+            self.health_timeline_date_from.text()
+            if hasattr(self, "health_timeline_date_from")
+            else ""
+        )
+        date_to = self._normalize_date_filter(
+            self.health_timeline_date_to.text()
+            if hasattr(self, "health_timeline_date_to")
+            else ""
+        )
         rows: list[dict[str, Any]] = []
         for item in timeline:
             ts = str(item.get("timestamp", ""))
@@ -2825,7 +3285,11 @@ class MainWindow(QMainWindow):
                 {
                     "timestamp": ts,
                     "serial": str(item.get("device_serial", "")),
-                    "score": int(item.get("score", -1)) if str(item.get("score", "-1")).lstrip("-").isdigit() else -1,
+                    "score": (
+                        int(item.get("score", -1))
+                        if str(item.get("score", "-1")).lstrip("-").isdigit()
+                        else -1
+                    ),
                     "status": str(item.get("status", "")),
                     "summary": str(item.get("summary", "")),
                 }
@@ -2837,7 +3301,9 @@ class MainWindow(QMainWindow):
         for r, row in enumerate(rows):
             self.health_timeline_table.setItem(r, 0, QTableWidgetItem(row["timestamp"]))
             self.health_timeline_table.setItem(r, 1, QTableWidgetItem(row["serial"]))
-            score_item = QTableWidgetItem(str(row["score"]) if row["score"] >= 0 else "n/a")
+            score_item = QTableWidgetItem(
+                str(row["score"]) if row["score"] >= 0 else "n/a"
+            )
             if row["score"] >= 0:
                 scores.append(int(row["score"]))
                 if row["score"] < 40:
@@ -2857,15 +3323,25 @@ class MainWindow(QMainWindow):
             )
             self.health_timeline_chart.set_scores(scores)
         else:
-            self.health_timeline_summary.setText("Aucun health check historise pour ce filtre.")
+            self.health_timeline_summary.setText(
+                "Aucun health check historise pour ce filtre."
+            )
             self.health_timeline_chart.set_scores([])
         self._refresh_health_fleet()
 
-    def _refresh_health_timeline_device_filter(self, rows: list[dict[str, Any]]) -> None:
+    def _refresh_health_timeline_device_filter(
+        self, rows: list[dict[str, Any]]
+    ) -> None:
         if not hasattr(self, "health_timeline_device_filter"):
             return
         current = str(self.health_timeline_device_filter.currentData() or "")
-        serials = sorted({str(r.get("serial", "")).strip() for r in rows if str(r.get("serial", "")).strip()})
+        serials = sorted(
+            {
+                str(r.get("serial", "")).strip()
+                for r in rows
+                if str(r.get("serial", "")).strip()
+            }
+        )
         self.health_timeline_device_filter.blockSignals(True)
         self.health_timeline_device_filter.clear()
         self.health_timeline_device_filter.addItem("Tous devices", "")
@@ -2888,7 +3364,11 @@ class MainWindow(QMainWindow):
             if serial not in by_serial:
                 by_serial[serial] = row
         devices = {d.serial: d for d in self._last_devices}
-        ordered = sorted(by_serial.items(), key=lambda item: item[1].get("timestamp", ""), reverse=True)
+        ordered = sorted(
+            by_serial.items(),
+            key=lambda item: item[1].get("timestamp", ""),
+            reverse=True,
+        )
         self.health_fleet_table.setRowCount(len(ordered))
         for r, (serial, row) in enumerate(ordered):
             dev = devices.get(serial)
@@ -2917,7 +3397,11 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Health Timeline CSV",
-            str(self.base_dir / "reports" / f"health_timeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"),
+            str(
+                self.base_dir
+                / "reports"
+                / f"health_timeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            ),
             "CSV (*.csv)",
         )
         if not path:
@@ -2926,28 +3410,60 @@ class MainWindow(QMainWindow):
         out.parent.mkdir(parents=True, exist_ok=True)
         with out.open("w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["timestamp", "device_serial", "score", "status", "summary"])
+            writer.writerow(
+                ["timestamp", "device_serial", "score", "status", "summary"]
+            )
             for row in self._health_history_rows:
-                writer.writerow([row["timestamp"], row["serial"], row["score"], row["status"], row["summary"]])
+                writer.writerow(
+                    [
+                        row["timestamp"],
+                        row["serial"],
+                        row["score"],
+                        row["status"],
+                        row["summary"],
+                    ]
+                )
         Toast(self, "Timeline exportee (CSV)")
 
     def _collect_bundle_data(self, serial: str) -> dict[str, Any]:
         captures_dir = self.base_dir / "captures"
-        capture_files = sorted(captures_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)[:15] if captures_dir.exists() else []
+        capture_files = (
+            sorted(
+                captures_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True
+            )[:15]
+            if captures_dir.exists()
+            else []
+        )
         audit_payload = {
             "session_id": self._session_id,
             "summary": self.audit_module.summarize_session(self._session_id),
-            "events": self.audit_module.list_events(session_id=self._session_id, limit=1000),
+            "events": self.audit_module.list_events(
+                session_id=self._session_id, limit=1000
+            ),
         }
         app_summary = {
             "count": len(self._apps_all_packages),
             "risk_counts": {
-                "HIGH": sum(1 for v in self._app_analysis.values() if str(v.get("risk", "")).upper() == "HIGH"),
-                "MEDIUM": sum(1 for v in self._app_analysis.values() if str(v.get("risk", "")).upper() == "MEDIUM"),
-                "LOW": sum(1 for v in self._app_analysis.values() if str(v.get("risk", "")).upper() == "LOW"),
+                "HIGH": sum(
+                    1
+                    for v in self._app_analysis.values()
+                    if str(v.get("risk", "")).upper() == "HIGH"
+                ),
+                "MEDIUM": sum(
+                    1
+                    for v in self._app_analysis.values()
+                    if str(v.get("risk", "")).upper() == "MEDIUM"
+                ),
+                "LOW": sum(
+                    1
+                    for v in self._app_analysis.values()
+                    if str(v.get("risk", "")).upper() == "LOW"
+                ),
             },
         }
-        timeline = self.audit_module.list_health_timeline(device_serial=serial or None, limit=300)
+        timeline = self.audit_module.list_health_timeline(
+            device_serial=serial or None, limit=300
+        )
         logs = [self.base_dir / "adb_manager.log"]
         return {
             "device_inspector": self._device_inspector_data,
@@ -2965,7 +3481,9 @@ class MainWindow(QMainWindow):
         if not serial:
             Toast(self, "Aucun appareil actif")
             return
-        name, ok = QInputDialog.getText(self, "Support Bundle", "Nom du bundle", text="support_bundle")
+        name, ok = QInputDialog.getText(
+            self, "Support Bundle", "Nom du bundle", text="support_bundle"
+        )
         if not ok or not name.strip():
             return
         include = {
@@ -3013,7 +3531,9 @@ class MainWindow(QMainWindow):
         if not isinstance(finding, dict):
             self.health_finding_raw.setPlainText("{}")
             return
-        self.health_finding_raw.setPlainText(json.dumps(finding, indent=2, ensure_ascii=False))
+        self.health_finding_raw.setPlainText(
+            json.dumps(finding, indent=2, ensure_ascii=False)
+        )
 
     def _export_device_health_json(self) -> None:
         if not self._last_device_health_report:
@@ -3022,14 +3542,21 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Device Health JSON",
-            str(self.base_dir / "reports" / f"device_health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            str(
+                self.base_dir
+                / "reports"
+                / f"device_health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            ),
             "JSON (*.json)",
         )
         if not path:
             return
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(self._last_device_health_report, indent=2, ensure_ascii=False), encoding="utf-8")
+        p.write_text(
+            json.dumps(self._last_device_health_report, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
         Toast(self, "Device health exporte (JSON)")
 
     def _export_device_health_html(self) -> None:
@@ -3039,7 +3566,11 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Device Health HTML",
-            str(self.base_dir / "reports" / f"device_health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"),
+            str(
+                self.base_dir
+                / "reports"
+                / f"device_health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            ),
             "HTML (*.html)",
         )
         if not path:
@@ -3075,7 +3606,11 @@ class MainWindow(QMainWindow):
         Toast(self, "Device health exporte (HTML)")
 
     def _resolve_scrcpy_bin(self) -> str | None:
-        raw = self.scrcpy_path_input.text().strip() if hasattr(self, "scrcpy_path_input") else "scrcpy"
+        raw = (
+            self.scrcpy_path_input.text().strip()
+            if hasattr(self, "scrcpy_path_input")
+            else "scrcpy"
+        )
         if not raw:
             raw = "scrcpy"
         self.config.set("app.scrcpy_bin", raw)
@@ -3088,7 +3623,9 @@ class MainWindow(QMainWindow):
     def _detect_scrcpy(self) -> None:
         resolved = self._resolve_scrcpy_bin()
         if resolved:
-            self.scrcpy_status_label.setText(f"Etat: disponible ({Path(resolved).name})")
+            self.scrcpy_status_label.setText(
+                f"Etat: disponible ({Path(resolved).name})"
+            )
             Toast(self, f"scrcpy detecte: {resolved}")
         else:
             self.scrcpy_status_label.setText("Etat: scrcpy introuvable")
@@ -3103,14 +3640,31 @@ class MainWindow(QMainWindow):
         self.config.set("remote.scrcpy_bitrate_m", int(self.scrcpy_bitrate.value()))
         self.config.set("remote.scrcpy_max_size", int(self.scrcpy_max_size.value()))
         self.config.set("remote.scrcpy_max_fps", int(self.scrcpy_max_fps.value()))
-        self.config.set("remote.scrcpy_no_audio", bool(self.scrcpy_no_audio.isChecked()))
-        self.config.set("remote.scrcpy_fullscreen", bool(self.scrcpy_fullscreen.isChecked()))
-        self.config.set("remote.scrcpy_always_on_top", bool(self.scrcpy_always_on_top.isChecked()))
-        self.config.set("remote.scrcpy_turn_screen_off", bool(self.scrcpy_turn_screen_off.isChecked()))
-        self.config.set("remote.scrcpy_stay_awake", bool(self.scrcpy_stay_awake.isChecked()))
-        self.config.set("remote.scrcpy_show_touches", bool(self.scrcpy_show_touches.isChecked()))
-        self.config.set("remote.scrcpy_no_control", bool(self.scrcpy_no_control.isChecked()))
-        self.config.set("remote.scrcpy_extra_args", str(self.scrcpy_extra_args.text().strip()))
+        self.config.set(
+            "remote.scrcpy_no_audio", bool(self.scrcpy_no_audio.isChecked())
+        )
+        self.config.set(
+            "remote.scrcpy_fullscreen", bool(self.scrcpy_fullscreen.isChecked())
+        )
+        self.config.set(
+            "remote.scrcpy_always_on_top", bool(self.scrcpy_always_on_top.isChecked())
+        )
+        self.config.set(
+            "remote.scrcpy_turn_screen_off",
+            bool(self.scrcpy_turn_screen_off.isChecked()),
+        )
+        self.config.set(
+            "remote.scrcpy_stay_awake", bool(self.scrcpy_stay_awake.isChecked())
+        )
+        self.config.set(
+            "remote.scrcpy_show_touches", bool(self.scrcpy_show_touches.isChecked())
+        )
+        self.config.set(
+            "remote.scrcpy_no_control", bool(self.scrcpy_no_control.isChecked())
+        )
+        self.config.set(
+            "remote.scrcpy_extra_args", str(self.scrcpy_extra_args.text().strip())
+        )
         self.config.save()
 
     def _save_remote_action_scope(self, *_args) -> None:
@@ -3158,7 +3712,11 @@ class MainWindow(QMainWindow):
             item = QListWidgetItem(f"{dev.serial} ({dev.model})")
             item.setData(Qt.ItemDataRole.UserRole, dev.serial)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Checked if dev.serial in saved_set else Qt.CheckState.Unchecked)
+            item.setCheckState(
+                Qt.CheckState.Checked
+                if dev.serial in saved_set
+                else Qt.CheckState.Unchecked
+            )
             self.remote_targets_list.addItem(item)
         self.remote_targets_list.blockSignals(False)
 
@@ -3242,7 +3800,12 @@ class MainWindow(QMainWindow):
             return
 
         self._save_scrcpy_options()
-        args: list[str] = ["-s", serial, "--window-title", f"ADB Manager Remote - {serial}"]
+        args: list[str] = [
+            "-s",
+            serial,
+            "--window-title",
+            f"ADB Manager Remote - {serial}",
+        ]
         bitrate = int(self.scrcpy_bitrate.value())
         max_size = int(self.scrcpy_max_size.value())
         max_fps = int(self.scrcpy_max_fps.value())
@@ -3286,7 +3849,9 @@ class MainWindow(QMainWindow):
         proc.start()
 
         self._update_scrcpy_status_ui()
-        self.remote_log_output.append(f"[scrcpy:{serial}] start: {resolved} {' '.join(args)}")
+        self.remote_log_output.append(
+            f"[scrcpy:{serial}] start: {resolved} {' '.join(args)}"
+        )
 
     def _start_scrcpy_remote_all(self) -> None:
         if not self._last_devices:
@@ -3344,7 +3909,11 @@ class MainWindow(QMainWindow):
         if not isinstance(proc, QProcess):
             return
         serial = str(proc.property("serial") or "?")
-        data = bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace").strip()
+        data = (
+            bytes(proc.readAllStandardOutput())
+            .decode("utf-8", errors="replace")
+            .strip()
+        )
         if data:
             self.remote_log_output.append(f"[scrcpy:{serial}] {data}")
 
@@ -3353,7 +3922,9 @@ class MainWindow(QMainWindow):
         if not isinstance(proc, QProcess):
             return
         serial = str(proc.property("serial") or "?")
-        data = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace").strip()
+        data = (
+            bytes(proc.readAllStandardError()).decode("utf-8", errors="replace").strip()
+        )
         if data:
             self.remote_log_output.append(f"[scrcpy:{serial}] {data}")
 
@@ -3375,9 +3946,15 @@ class MainWindow(QMainWindow):
             return
 
         for serial in serials:
+
             def done(result: CommandResult, s=serial) -> None:
-                self.bridge.command_done.emit(("remote_shell", {"serial": s, "result": result}))
-            self.adb.run_async(["shell", "sh", "-c", shell_command], serial=serial, callback=done)
+                self.bridge.command_done.emit(
+                    ("remote_shell", {"serial": s, "result": result})
+                )
+
+            self.adb.run_async(
+                ["shell", "sh", "-c", shell_command], serial=serial, callback=done
+            )
 
     def _remote_keyevent(self, keycode: str) -> None:
         self._remote_shell(f"input keyevent {keycode}")
@@ -3414,11 +3991,17 @@ class MainWindow(QMainWindow):
             return
 
         def done(result: CommandResult, s=serial) -> None:
-            self.bridge.command_done.emit(("remote_shell", {"serial": s, "result": result}))
+            self.bridge.command_done.emit(
+                ("remote_shell", {"serial": s, "result": result})
+            )
 
-        self.adb.run_async(["shell", "sh", "-c", shell_command], serial=serial, callback=done)
+        self.adb.run_async(
+            ["shell", "sh", "-c", shell_command], serial=serial, callback=done
+        )
 
-    def _capture_screen_for_serial(self, serial: str, open_captures_tab: bool = False) -> None:
+    def _capture_screen_for_serial(
+        self, serial: str, open_captures_tab: bool = False
+    ) -> None:
         if not serial:
             Toast(self, "Aucun appareil actif")
             return
@@ -3474,8 +4057,14 @@ class MainWindow(QMainWindow):
             title.setStyleSheet("font-size:15px;")
             card_l.addWidget(title)
             card_l.addWidget(QLabel(f"Serial: {dev.serial}"))
-            card_l.addWidget(QLabel(f"Etat: {dev.state} | Android: {dev.android_version}"))
-            card_l.addWidget(QLabel(f"Transport: {dev.transport} | Root: {'yes' if dev.root else 'no'}"))
+            card_l.addWidget(
+                QLabel(f"Etat: {dev.state} | Android: {dev.android_version}")
+            )
+            card_l.addWidget(
+                QLabel(
+                    f"Transport: {dev.transport} | Root: {'yes' if dev.root else 'no'}"
+                )
+            )
 
             row = QHBoxLayout()
             btn_active = QPushButton("Activer")
@@ -3486,10 +4075,22 @@ class MainWindow(QMainWindow):
             btn_scrcpy.setObjectName("successBtn")
             btn_wake.setObjectName("ghostBtn")
             btn_shot.setObjectName("ghostBtn")
-            btn_active.clicked.connect(lambda _=False, s=dev.serial: self._set_active_serial(s))
-            btn_scrcpy.clicked.connect(lambda _=False, s=dev.serial: self._start_scrcpy_for_serial(s))
-            btn_wake.clicked.connect(lambda _=False, s=dev.serial: self._remote_shell_for_serial(s, "input keyevent KEYCODE_WAKEUP"))
-            btn_shot.clicked.connect(lambda _=False, s=dev.serial: self._capture_screen_for_serial(s, open_captures_tab=False))
+            btn_active.clicked.connect(
+                lambda _=False, s=dev.serial: self._set_active_serial(s)
+            )
+            btn_scrcpy.clicked.connect(
+                lambda _=False, s=dev.serial: self._start_scrcpy_for_serial(s)
+            )
+            btn_wake.clicked.connect(
+                lambda _=False, s=dev.serial: self._remote_shell_for_serial(
+                    s, "input keyevent KEYCODE_WAKEUP"
+                )
+            )
+            btn_shot.clicked.connect(
+                lambda _=False, s=dev.serial: self._capture_screen_for_serial(
+                    s, open_captures_tab=False
+                )
+            )
             row.addWidget(btn_active)
             row.addWidget(btn_scrcpy)
             row.addWidget(btn_wake)
@@ -3502,9 +4103,13 @@ class MainWindow(QMainWindow):
             self.remote_center_grid.addWidget(card, r, c)
 
     def _setup_polling(self) -> None:
-        self.device_manager.add_listener(lambda devices: self.bridge.device_list_updated.emit(devices))
+        self.device_manager.add_listener(
+            lambda devices: self.bridge.device_list_updated.emit(devices)
+        )
         self.poll_timer = QTimer(self)
-        self.poll_timer.setInterval(int(self.config.get("app.refresh_interval_ms", 2500)))
+        self.poll_timer.setInterval(
+            int(self.config.get("app.refresh_interval_ms", 2500))
+        )
         self.poll_timer.timeout.connect(self.device_manager.poll_async)
         self.poll_timer.start()
         self.device_manager.poll_async()
@@ -3607,7 +4212,11 @@ class MainWindow(QMainWindow):
     def _apply_sidebar_state(self, collapsed: bool, persist: bool = True) -> None:
         self.sidebar_container.setVisible(not collapsed)
         self.sidebar_toggle_btn.setText("➤" if collapsed else "☰")
-        self.sidebar_toggle_btn.setToolTip("Afficher la sidebar (Ctrl+B)" if collapsed else "Masquer la sidebar (Ctrl+B)")
+        self.sidebar_toggle_btn.setToolTip(
+            "Afficher la sidebar (Ctrl+B)"
+            if collapsed
+            else "Masquer la sidebar (Ctrl+B)"
+        )
         if persist:
             self.config.set("ui.sidebar_collapsed", collapsed)
             self.config.save()
@@ -3674,15 +4283,17 @@ class MainWindow(QMainWindow):
         suggestions = []
         for items in COMMAND_CATALOG.values():
             suggestions.extend(item.command for item in items)
-        suggestions.extend([
-            "connect 192.168.1.10:5555",
-            "disconnect",
-            "tcpip 5555",
-            "shell getprop",
-            "shell settings list global",
-            "shell wm size",
-            "exec-out screencap -p",
-        ])
+        suggestions.extend(
+            [
+                "connect 192.168.1.10:5555",
+                "disconnect",
+                "tcpip 5555",
+                "shell getprop",
+                "shell settings list global",
+                "shell wm size",
+                "exec-out screencap -p",
+            ]
+        )
         self.terminal.set_suggestions(suggestions)
 
     @Slot(object)
@@ -3698,7 +4309,10 @@ class MainWindow(QMainWindow):
                 action="device_connected",
                 status="ok",
                 message=f"Device connected: {serial}",
-                payload={"model": dev.model if dev else "", "transport": dev.transport if dev else ""},
+                payload={
+                    "model": dev.model if dev else "",
+                    "transport": dev.transport if dev else "",
+                },
                 serial=serial,
             )
             if dev is not None and dev.state == "unauthorized":
@@ -3725,7 +4339,9 @@ class MainWindow(QMainWindow):
         root_count = sum(1 for d in devices if d.root)
         if devices:
             active = devices[0]
-            self.device_badge.setText(f"{len(devices)} appareil(s) • actif: {active.serial}")
+            self.device_badge.setText(
+                f"{len(devices)} appareil(s) • actif: {active.serial}"
+            )
         else:
             self.device_badge.setText("Aucun appareil")
         if hasattr(self, "metric_devices_value"):
@@ -3734,7 +4350,9 @@ class MainWindow(QMainWindow):
             self.metric_root_value.setText(str(root_count))
         if hasattr(self, "metric_active_value"):
             self.metric_active_value.setText(devices[0].serial if devices else "-")
-        previous_serial = str(self.device_box.currentData() or "") if self.device_box.count() else ""
+        previous_serial = (
+            str(self.device_box.currentData() or "") if self.device_box.count() else ""
+        )
         self.device_box.blockSignals(True)
         self.device_box.clear()
         for dev in devices:
@@ -3743,7 +4361,9 @@ class MainWindow(QMainWindow):
             idx_prev = self.device_box.findData(previous_serial)
             if idx_prev >= 0:
                 self.device_box.setCurrentIndex(idx_prev)
-        current_serial = str(self.device_box.currentData() or "") if self.device_box.count() else ""
+        current_serial = (
+            str(self.device_box.currentData() or "") if self.device_box.count() else ""
+        )
         self.device_box.blockSignals(False)
         self._refresh_profile_box()
         if current_serial:
@@ -3761,10 +4381,17 @@ class MainWindow(QMainWindow):
             self.device_table.setItem(row, 2, QTableWidgetItem(dev.model))
             self.device_table.setItem(row, 3, QTableWidgetItem(dev.transport))
             self.device_table.setItem(row, 4, QTableWidgetItem(dev.android_version))
-            self.device_table.setItem(row, 5, QTableWidgetItem("yes" if dev.root else "no"))
+            self.device_table.setItem(
+                row, 5, QTableWidgetItem("yes" if dev.root else "no")
+            )
 
         hist_rows = self.history.recent_device_history(limit=20)
-        self.history_box.setPlainText("\n".join(f"{ts} | {serial} | {model} | {event}" for serial, model, event, ts in hist_rows))
+        self.history_box.setPlainText(
+            "\n".join(
+                f"{ts} | {serial} | {model} | {event}"
+                for serial, model, event, ts in hist_rows
+            )
+        )
 
     def _selected_serial(self) -> str | None:
         if self.device_box.count() == 0:
@@ -3876,11 +4503,23 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "audit_table"):
             return
         session_id = str(self.audit_session_box.currentData() or "").strip()
-        serial = str(self.audit_device_filter.currentData() or "").strip() if hasattr(self, "audit_device_filter") else ""
-        event_type = self.audit_type_filter.currentText() if hasattr(self, "audit_type_filter") else "Tous types"
+        serial = (
+            str(self.audit_device_filter.currentData() or "").strip()
+            if hasattr(self, "audit_device_filter")
+            else ""
+        )
+        event_type = (
+            self.audit_type_filter.currentText()
+            if hasattr(self, "audit_type_filter")
+            else "Tous types"
+        )
         event_type = "" if event_type == "Tous types" else event_type
-        date_from = self._normalize_date_filter(self.audit_date_from.text() if hasattr(self, "audit_date_from") else "")
-        date_to = self._normalize_date_filter(self.audit_date_to.text() if hasattr(self, "audit_date_to") else "")
+        date_from = self._normalize_date_filter(
+            self.audit_date_from.text() if hasattr(self, "audit_date_from") else ""
+        )
+        date_to = self._normalize_date_filter(
+            self.audit_date_to.text() if hasattr(self, "audit_date_to") else ""
+        )
 
         events = self.audit_module.list_events(
             session_id=session_id or None,
@@ -3894,9 +4533,15 @@ class MainWindow(QMainWindow):
         self.audit_table.setRowCount(len(events))
         for row, event in enumerate(events):
             self.audit_table.setItem(row, 0, QTableWidgetItem(str(event.get("ts", ""))))
-            self.audit_table.setItem(row, 1, QTableWidgetItem(str(event.get("device_serial", ""))))
-            self.audit_table.setItem(row, 2, QTableWidgetItem(str(event.get("event_type", ""))))
-            self.audit_table.setItem(row, 3, QTableWidgetItem(str(event.get("action", ""))))
+            self.audit_table.setItem(
+                row, 1, QTableWidgetItem(str(event.get("device_serial", "")))
+            )
+            self.audit_table.setItem(
+                row, 2, QTableWidgetItem(str(event.get("event_type", "")))
+            )
+            self.audit_table.setItem(
+                row, 3, QTableWidgetItem(str(event.get("action", "")))
+            )
             status_item = QTableWidgetItem(str(event.get("status", "")))
             st = str(event.get("status", "")).lower()
             if st in {"error", "failed"}:
@@ -3906,11 +4551,19 @@ class MainWindow(QMainWindow):
             elif st in {"ok", "success"}:
                 status_item.setForeground(QColor("#86efac"))
             self.audit_table.setItem(row, 4, status_item)
-            self.audit_table.setItem(row, 5, QTableWidgetItem(str(event.get("message", ""))))
+            self.audit_table.setItem(
+                row, 5, QTableWidgetItem(str(event.get("message", "")))
+            )
 
         if hasattr(self, "audit_device_filter"):
             current_dev = str(self.audit_device_filter.currentData() or "")
-            serials = sorted({str(e.get("device_serial", "")).strip() for e in events if str(e.get("device_serial", "")).strip()})
+            serials = sorted(
+                {
+                    str(e.get("device_serial", "")).strip()
+                    for e in events
+                    if str(e.get("device_serial", "")).strip()
+                }
+            )
             self.audit_device_filter.blockSignals(True)
             self.audit_device_filter.clear()
             self.audit_device_filter.addItem("Tous devices", "")
@@ -3923,7 +4576,9 @@ class MainWindow(QMainWindow):
             self.audit_device_filter.blockSignals(False)
 
         if not events:
-            self.audit_payload_text.setPlainText("Aucun evenement pour les filtres courants.")
+            self.audit_payload_text.setPlainText(
+                "Aucun evenement pour les filtres courants."
+            )
 
     def _on_audit_row_selected(self) -> None:
         if not hasattr(self, "audit_table"):
@@ -4014,8 +4669,16 @@ class MainWindow(QMainWindow):
         self._snapshot_name_to_path = map_paths
 
     def _compare_selected_snapshots(self) -> None:
-        name_a = self.snapshot_a_box.currentText().strip() if hasattr(self, "snapshot_a_box") else ""
-        name_b = self.snapshot_b_box.currentText().strip() if hasattr(self, "snapshot_b_box") else ""
+        name_a = (
+            self.snapshot_a_box.currentText().strip()
+            if hasattr(self, "snapshot_a_box")
+            else ""
+        )
+        name_b = (
+            self.snapshot_b_box.currentText().strip()
+            if hasattr(self, "snapshot_b_box")
+            else ""
+        )
         if not name_a or not name_b:
             Toast(self, "Selectionne snapshot A et B")
             return
@@ -4038,7 +4701,10 @@ class MainWindow(QMainWindow):
         self._render_snapshot_diff(diff)
         sm = diff.get("summary", {})
         if isinstance(sm, dict):
-            important = int(sm.get("packages_removed", 0)) > 0 or int(sm.get("apps_risk_changes", 0)) > 0
+            important = (
+                int(sm.get("packages_removed", 0)) > 0
+                or int(sm.get("apps_risk_changes", 0)) > 0
+            )
             if important:
                 self.notifications_module.add(
                     severity="warning",
@@ -4056,7 +4722,11 @@ class MainWindow(QMainWindow):
             action="compare_snapshots",
             status="ok",
             message="Snapshots compared",
-            payload={"snapshot_a": name_a, "snapshot_b": name_b, "summary": diff.get("summary", {})},
+            payload={
+                "snapshot_a": name_a,
+                "snapshot_b": name_b,
+                "summary": diff.get("summary", {}),
+            },
             serial=self._selected_serial(),
         )
 
@@ -4108,7 +4778,11 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export diff snapshots JSON",
-            str(self.base_dir / "reports" / f"snapshot_diff_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            str(
+                self.base_dir
+                / "reports"
+                / f"snapshot_diff_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            ),
             "JSON (*.json)",
         )
         if not path:
@@ -4123,7 +4797,11 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export diff snapshots HTML",
-            str(self.base_dir / "reports" / f"snapshot_diff_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"),
+            str(
+                self.base_dir
+                / "reports"
+                / f"snapshot_diff_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            ),
             "HTML (*.html)",
         )
         if not path:
@@ -4149,7 +4827,11 @@ class MainWindow(QMainWindow):
         self.profile_box.blockSignals(False)
 
     def _selected_profile(self) -> DeviceProfile | None:
-        profile_id = str(self.profile_box.currentData() or "").strip() if hasattr(self, "profile_box") else ""
+        profile_id = (
+            str(self.profile_box.currentData() or "").strip()
+            if hasattr(self, "profile_box")
+            else ""
+        )
         if not profile_id:
             return None
         for profile in self.profiles_module.list_profiles():
@@ -4169,11 +4851,23 @@ class MainWindow(QMainWindow):
             Toast(self, "Aucun appareil actif")
             return
         current = self.profiles_module.find_match(serial)
-        default_alias = current.alias if current else (self._current_device_info().model if self._current_device_info() else serial)
-        alias, ok = QInputDialog.getText(self, "Sauver profil appareil", "Alias du profil", text=default_alias)
+        default_alias = (
+            current.alias
+            if current
+            else (
+                self._current_device_info().model
+                if self._current_device_info()
+                else serial
+            )
+        )
+        alias, ok = QInputDialog.getText(
+            self, "Sauver profil appareil", "Alias du profil", text=default_alias
+        )
         if not ok or not alias.strip():
             return
-        tags_raw, _ = QInputDialog.getText(self, "Tags profil", "Tags (optionnel, separes par virgule)")
+        tags_raw, _ = QInputDialog.getText(
+            self, "Tags profil", "Tags (optionnel, separes par virgule)"
+        )
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
         remote = self.remote_path.text().strip() if hasattr(self, "remote_path") else ""
         local = self.local_path.text().strip() if hasattr(self, "local_path") else ""
@@ -4240,7 +4934,9 @@ class MainWindow(QMainWindow):
         profile = self._selected_profile()
         if profile is None:
             return
-        reply = QMessageBox.question(self, "Suppression profil", f"Supprimer le profil '{profile.alias}' ?")
+        reply = QMessageBox.question(
+            self, "Suppression profil", f"Supprimer le profil '{profile.alias}' ?"
+        )
         if reply != QMessageBox.StandardButton.Yes:
             return
         self.profiles_module.delete_profile(profile.profile_id)
@@ -4257,7 +4953,11 @@ class MainWindow(QMainWindow):
         profile = self.profiles_module.find_match(serial)
         if profile is None:
             return
-        idx = self.profile_box.findData(profile.profile_id) if hasattr(self, "profile_box") else -1
+        idx = (
+            self.profile_box.findData(profile.profile_id)
+            if hasattr(self, "profile_box")
+            else -1
+        )
         if idx >= 0:
             self.profile_box.setCurrentIndex(idx)
         self._apply_profile(profile)
@@ -4269,7 +4969,11 @@ class MainWindow(QMainWindow):
             if hasattr(self, "inspector_text"):
                 self.inspector_text.setPlainText("Aucun appareil actif.")
             return
-        self._run_in_worker("device_inspector", lambda: self.inspector_module.inspect(serial, self._current_device_info()), {"serial": serial})
+        self._run_in_worker(
+            "device_inspector",
+            lambda: self.inspector_module.inspect(serial, self._current_device_info()),
+            {"serial": serial},
+        )
 
     def _render_device_inspector(self, info: dict[str, str]) -> None:
         self._device_inspector_data = info
@@ -4300,17 +5004,27 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Exporter Device Inspector",
-            str(self.base_dir / f"device_inspector_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            str(
+                self.base_dir
+                / f"device_inspector_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            ),
             "JSON (*.json)",
         )
         if not path:
             return
-        Path(path).write_text(json.dumps(self._device_inspector_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        Path(path).write_text(
+            json.dumps(self._device_inspector_data, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
         Toast(self, "Inspector exporte")
 
     def _run_health_check(self) -> None:
         serial = self._selected_serial()
-        self._run_in_worker("health_check", lambda: self.health_module.run(self._last_devices, serial), {"serial": serial or ""})
+        self._run_in_worker(
+            "health_check",
+            lambda: self.health_module.run(self._last_devices, serial),
+            {"serial": serial or ""},
+        )
 
     def _render_health_report(self, report: dict) -> None:
         self._health_report = report
@@ -4320,7 +5034,9 @@ class MainWindow(QMainWindow):
         for check in report.get("checks", []):
             if not isinstance(check, dict):
                 continue
-            parts.append(f"[{check.get('status', 'n/a')}] {check.get('name', 'check')}: {check.get('message', '')}")
+            parts.append(
+                f"[{check.get('status', 'n/a')}] {check.get('name', 'check')}: {check.get('message', '')}"
+            )
             remediation = str(check.get("remediation", "")).strip()
             if remediation:
                 parts.append(f"  -> Remediation: {remediation}")
@@ -4333,12 +5049,18 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Exporter Health Check",
-            str(self.base_dir / f"adb_health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            str(
+                self.base_dir
+                / f"adb_health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            ),
             "JSON (*.json)",
         )
         if not path:
             return
-        Path(path).write_text(json.dumps(self._health_report, indent=2, ensure_ascii=False), encoding="utf-8")
+        Path(path).write_text(
+            json.dumps(self._health_report, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
         Toast(self, "Health check exporte")
 
     def _run_in_worker(self, task: str, fn, context: dict | None = None) -> None:
@@ -4347,9 +5069,21 @@ class MainWindow(QMainWindow):
         def _done(future) -> None:
             try:
                 value = future.result()
-                payload = {"task": task, "ok": True, "value": value, "context": context or {}, "error": ""}
+                payload = {
+                    "task": task,
+                    "ok": True,
+                    "value": value,
+                    "context": context or {},
+                    "error": "",
+                }
             except Exception as exc:  # noqa: BLE001
-                payload = {"task": task, "ok": False, "value": None, "context": context or {}, "error": str(exc)}
+                payload = {
+                    "task": task,
+                    "ok": False,
+                    "value": None,
+                    "context": context or {},
+                    "error": str(exc),
+                }
             self.bridge.command_done.emit(("worker", payload))
 
         self.adb.executor.submit(fn).add_done_callback(_done)
@@ -4368,7 +5102,9 @@ class MainWindow(QMainWindow):
                 status="error",
                 message=error or f"{task} failed",
                 payload={"context": context},
-                serial=str(context.get("serial", "") if isinstance(context, dict) else ""),
+                serial=str(
+                    context.get("serial", "") if isinstance(context, dict) else ""
+                ),
             )
             Toast(self, f"{task}: {error}")
             return
@@ -4382,7 +5118,10 @@ class MainWindow(QMainWindow):
                 action="list_apps",
                 status="ok",
                 message=f"{len(apps)} apps loaded",
-                payload={"count": len(apps), "include_system": bool(context.get("include_system", False))},
+                payload={
+                    "count": len(apps),
+                    "include_system": bool(context.get("include_system", False)),
+                },
                 serial=str(context.get("serial", "")),
             )
             return
@@ -4390,7 +5129,9 @@ class MainWindow(QMainWindow):
         if task == "system_info":
             info = value if isinstance(value, dict) else {}
             self._last_system_info = info
-            self.system_info_text.setPlainText("\n".join(f"{k}: {v}" for k, v in info.items()))
+            self.system_info_text.setPlainText(
+                "\n".join(f"{k}: {v}" for k, v in info.items())
+            )
             self.statusBar().showMessage("Informations systeme rafraichies")
             self._audit_event(
                 event_type="system",
@@ -4405,7 +5146,10 @@ class MainWindow(QMainWindow):
         if task == "system_monitor":
             snap = value if isinstance(value, dict) else {}
             self.system_info_text.setPlainText(
-                "=== TOP ===\n" + str(snap.get("top", ""))[:5000] + "\n\n=== MEMINFO ===\n" + str(snap.get("meminfo", ""))[:5000]
+                "=== TOP ===\n"
+                + str(snap.get("top", ""))[:5000]
+                + "\n\n=== MEMINFO ===\n"
+                + str(snap.get("meminfo", ""))[:5000]
             )
             self.statusBar().showMessage("Snapshot monitoring termine")
             self._audit_event(
@@ -4413,7 +5157,10 @@ class MainWindow(QMainWindow):
                 action="monitor_snapshot",
                 status="ok",
                 message="System monitor snapshot captured",
-                payload={"has_top": bool(snap.get("top")), "has_meminfo": bool(snap.get("meminfo"))},
+                payload={
+                    "has_top": bool(snap.get("top")),
+                    "has_meminfo": bool(snap.get("meminfo")),
+                },
                 serial=str(context.get("serial", "")),
             )
             return
@@ -4427,7 +5174,10 @@ class MainWindow(QMainWindow):
                 action="device_inspector",
                 status="ok",
                 message="Device inspector refreshed",
-                payload={"serial": info.get("serial", ""), "android": info.get("android_version", "")},
+                payload={
+                    "serial": info.get("serial", ""),
+                    "android": info.get("android_version", ""),
+                },
                 serial=str(context.get("serial", "")),
             )
             return
@@ -4441,7 +5191,10 @@ class MainWindow(QMainWindow):
                 action="health_check",
                 status=str(report.get("status", "ok")).lower(),
                 message=str(report.get("summary", "Health check")),
-                payload={"target_serial": report.get("target_serial", ""), "checks": len(report.get("checks", []))},
+                payload={
+                    "target_serial": report.get("target_serial", ""),
+                    "checks": len(report.get("checks", [])),
+                },
                 serial=str(context.get("serial", "")),
             )
             return
@@ -4455,8 +5208,16 @@ class MainWindow(QMainWindow):
                 event_type="system",
                 action="device_health_checks",
                 status="ok",
-                message=str(report.get("summary", "Device health checks"))[:220] if isinstance(report, dict) else "Device health checks",
-                payload={"score": report.get("score", 0), "status": report.get("status", ""), "findings": len(findings) if isinstance(findings, list) else 0},
+                message=(
+                    str(report.get("summary", "Device health checks"))[:220]
+                    if isinstance(report, dict)
+                    else "Device health checks"
+                ),
+                payload={
+                    "score": report.get("score", 0),
+                    "status": report.get("status", ""),
+                    "findings": len(findings) if isinstance(findings, list) else 0,
+                },
                 serial=str(context.get("serial", "")),
             )
             return
@@ -4464,7 +5225,11 @@ class MainWindow(QMainWindow):
         if task == "transfer_queue_execute":
             payload = value if isinstance(value, dict) else {}
             results = payload.get("results", []) if isinstance(payload, dict) else []
-            total = int(payload.get("total", len(results))) if isinstance(payload, dict) else len(results)
+            total = (
+                int(payload.get("total", len(results)))
+                if isinstance(payload, dict)
+                else len(results)
+            )
             self._transfer_running = False
             self.transfer_start_btn.setEnabled(True)
             self.transfer_clear_btn.setEnabled(True)
@@ -4488,7 +5253,15 @@ class MainWindow(QMainWindow):
                         self._audit_event(
                             event_type="file",
                             action="data_transfer",
-                            status="ok" if st in {"success", "ok", "dry_run"} else ("warning" if st in {"partial", "warn", "warning"} else "error"),
+                            status=(
+                                "ok"
+                                if st in {"success", "ok", "dry_run"}
+                                else (
+                                    "warning"
+                                    if st in {"partial", "warn", "warning"}
+                                    else "error"
+                                )
+                            ),
                             message=f"{task_data.get('source', '')} -> {task_data.get('destination', '')} [{st}]",
                             payload={
                                 "task_id": rep.get("task_id", ""),
@@ -4498,11 +5271,15 @@ class MainWindow(QMainWindow):
                                 "verification": rep.get("verification", {}),
                                 "returncode": rep.get("returncode", 0),
                             },
-                            serial=str(task_data.get("serial", context.get("serial", ""))),
+                            serial=str(
+                                task_data.get("serial", context.get("serial", ""))
+                            ),
                         )
             self.transfer_progress.setMaximum(max(1, total))
             self.transfer_progress.setValue(total)
-            self.transfer_log.append(f"[done] total={total} ok={ok_count} partial={partial_count} error={err_count}")
+            self.transfer_log.append(
+                f"[done] total={total} ok={ok_count} partial={partial_count} error={err_count}"
+            )
             if err_count > 0:
                 self.notifications_module.add(
                     severity="warning",
@@ -4515,7 +5292,10 @@ class MainWindow(QMainWindow):
                 )
                 self._update_notifications_badge()
                 self._refresh_notifications_view()
-            Toast(self, f"Transfers termines: ok={ok_count} partial={partial_count} err={err_count}")
+            Toast(
+                self,
+                f"Transfers termines: ok={ok_count} partial={partial_count} err={err_count}",
+            )
             return
 
         if task == "workflow_execute":
@@ -4556,19 +5336,44 @@ class MainWindow(QMainWindow):
             Toast(self, f"Workflow termine: {status}")
             return
 
-        if task in {"push_file", "pull_file", "install_apk", "uninstall_app", "clear_app_data", "full_backup", "selective_backup", "restore_backup"}:
+        if task in {
+            "push_file",
+            "pull_file",
+            "install_apk",
+            "uninstall_app",
+            "clear_app_data",
+            "full_backup",
+            "selective_backup",
+            "restore_backup",
+        }:
             result = value if isinstance(value, CommandResult) else None
             if result is None:
                 Toast(self, f"{task}: resultat invalide")
                 return
             msg = result.stdout or result.stderr or "(aucune sortie)"
-            if task in {"push_file", "pull_file", "full_backup", "selective_backup", "restore_backup"}:
-                self.backup_output.append(f"{task.upper()} {'OK' if result.ok else 'ERR'}\n{msg}\n")
+            if task in {
+                "push_file",
+                "pull_file",
+                "full_backup",
+                "selective_backup",
+                "restore_backup",
+            }:
+                self.backup_output.append(
+                    f"{task.upper()} {'OK' if result.ok else 'ERR'}\n{msg}\n"
+                )
             else:
                 Toast(self, msg if not result.ok else f"{task} termine")
             if task == "uninstall_app" and result.ok:
                 self._list_apps()
-            event_type = "file" if task in {"push_file", "pull_file"} else ("app" if task in {"install_apk", "uninstall_app", "clear_app_data"} else "system")
+            event_type = (
+                "file"
+                if task in {"push_file", "pull_file"}
+                else (
+                    "app"
+                    if task in {"install_apk", "uninstall_app", "clear_app_data"}
+                    else "system"
+                )
+            )
             self._audit_event(
                 event_type=event_type,
                 action=task,
@@ -4603,10 +5408,18 @@ class MainWindow(QMainWindow):
                 + (" (annule)" if canceled else "")
             )
             self.batch_output.append(f"[BATCH] workers={workers} retries={retries}")
-            ok_count = sum(1 for r in self._batch_results if isinstance(r, dict) and bool(r.get("ok")))
+            ok_count = sum(
+                1
+                for r in self._batch_results
+                if isinstance(r, dict) and bool(r.get("ok"))
+            )
             err_count = max(0, executed - ok_count)
             self.batch_output.append(f"[BATCH] OK={ok_count} | ERR={err_count}")
-            total_attempts = sum(int(r.get("attempt_count", 0)) for r in self._batch_results if isinstance(r, dict))
+            total_attempts = sum(
+                int(r.get("attempt_count", 0))
+                for r in self._batch_results
+                if isinstance(r, dict)
+            )
             self.batch_output.append(f"[BATCH] Tentatives totales={total_attempts}")
             self.batch_output.append(f"[BATCH] Duree cumulée={total_duration:.3f}s")
             for row in self._batch_results[-15:]:
@@ -4617,7 +5430,9 @@ class MainWindow(QMainWindow):
                 out = str(row.get("stdout", "") or row.get("stderr", ""))[:160]
                 attempts = int(row.get("attempt_count", 0))
                 duration = float(row.get("duration_s", 0.0))
-                self.batch_output.append(f"  [{state}] ({attempts} tentative(s), {duration:.3f}s) {cmd}\n    {out}")
+                self.batch_output.append(
+                    f"  [{state}] ({attempts} tentative(s), {duration:.3f}s) {cmd}\n    {out}"
+                )
             Toast(self, "Batch termine")
             self._audit_event(
                 event_type="batch",
@@ -4640,7 +5455,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{task}: termine")
 
     def _wifi_connect_dialog(self) -> None:
-        ip_text, ok = QInputDialog.getText(self, "Connexion WiFi", "Adresse IP appareil (ex: 192.168.1.50)")
+        ip_text, ok = QInputDialog.getText(
+            self, "Connexion WiFi", "Adresse IP appareil (ex: 192.168.1.50)"
+        )
         if not ok or not ip_text.strip():
             return
         ip_text = ip_text.strip()
@@ -4754,7 +5571,10 @@ class MainWindow(QMainWindow):
                     serial=target,
                 )
         else:
-            Toast(self, "Pairing OK. Lance ensuite 'Connecter WiFi' avec l'IP:PORT de debug.")
+            Toast(
+                self,
+                "Pairing OK. Lance ensuite 'Connecter WiFi' avec l'IP:PORT de debug.",
+            )
             self._audit_event(
                 event_type="device",
                 action="wifi_pair",
@@ -4766,9 +5586,16 @@ class MainWindow(QMainWindow):
         self.device_manager.poll_async()
 
     def _wifi_pair_qr_dialog(self) -> None:
-        tool = str(self.config.get("app.adb_qr_tool", "adb-connect-qr")).strip() or "adb-connect-qr"
+        tool = (
+            str(self.config.get("app.adb_qr_tool", "adb-connect-qr")).strip()
+            or "adb-connect-qr"
+        )
         fallback_venv = self.base_dir / ".venv" / "bin" / "adb-connect-qr"
-        resolved = shutil.which(tool) or (tool if Path(tool).exists() else "") or (str(fallback_venv) if fallback_venv.exists() else "")
+        resolved = (
+            shutil.which(tool)
+            or (tool if Path(tool).exists() else "")
+            or (str(fallback_venv) if fallback_venv.exists() else "")
+        )
         if not resolved:
             QMessageBox.information(
                 self,
@@ -4799,7 +5626,9 @@ class MainWindow(QMainWindow):
         proc.finished.connect(self._on_qr_pair_finished)
         proc.start()
 
-        self.statusBar().showMessage("Pairing QR: en cours (scanne le QR sur ton telephone)")
+        self.statusBar().showMessage(
+            "Pairing QR: en cours (scanne le QR sur ton telephone)"
+        )
         if hasattr(self, "remote_log_output"):
             self.remote_log_output.append("[pair-qr] start")
             self.remote_log_output.append("Scanne le QR code graphique qui s'ouvre.")
@@ -4813,7 +5642,9 @@ class MainWindow(QMainWindow):
     def _qr_payload(self, service_name: str, password: str) -> str:
         return f"WIFI:T:ADB;S:{service_name};P:{password};;"
 
-    def _render_qr_pixmap(self, payload: str, scale: int = 8, border: int = 4) -> QPixmap | None:
+    def _render_qr_pixmap(
+        self, payload: str, scale: int = 8, border: int = 4
+    ) -> QPixmap | None:
         try:
             import qrcode
         except Exception:  # noqa: BLE001
@@ -4850,12 +5681,21 @@ class MainWindow(QMainWindow):
         dialog.setModal(False)
         dialog.resize(420, 500)
         lay = QVBoxLayout(dialog)
-        info = QLabel("Scanne ce QR sur le telephone:\nOptions developpeur > Debogage sans fil > Associer via QR")
+        info = QLabel(
+            "Scanne ce QR sur le telephone:\nOptions developpeur > Debogage sans fil > Associer via QR"
+        )
         info.setWordWrap(True)
         lay.addWidget(info)
         qr_label = QLabel()
         qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        qr_label.setPixmap(pix.scaled(360, 360, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation))
+        qr_label.setPixmap(
+            pix.scaled(
+                360,
+                360,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.FastTransformation,
+            )
+        )
         lay.addWidget(qr_label)
         lay.addWidget(QLabel(f"Service: {service_name}"))
         lay.addWidget(QLabel(f"Password: {password}"))
@@ -4869,11 +5709,15 @@ class MainWindow(QMainWindow):
     def _consume_qr_pair_stdout(self) -> None:
         if self.qr_pair_process is None:
             return
-        data = bytes(self.qr_pair_process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        data = bytes(self.qr_pair_process.readAllStandardOutput()).decode(
+            "utf-8", errors="replace"
+        )
         if data:
             self._qr_pair_buffer += data
             if not self._qr_service_name:
-                m = re.search(r"Service Name:\s*([A-Za-z0-9._-]+)", self._qr_pair_buffer)
+                m = re.search(
+                    r"Service Name:\s*([A-Za-z0-9._-]+)", self._qr_pair_buffer
+                )
                 if m:
                     self._qr_service_name = m.group(1).strip()
             if not self._qr_password:
@@ -4888,7 +5732,9 @@ class MainWindow(QMainWindow):
     def _consume_qr_pair_stderr(self) -> None:
         if self.qr_pair_process is None:
             return
-        data = bytes(self.qr_pair_process.readAllStandardError()).decode("utf-8", errors="replace")
+        data = bytes(self.qr_pair_process.readAllStandardError()).decode(
+            "utf-8", errors="replace"
+        )
         if data.strip() and hasattr(self, "remote_log_output"):
             self.remote_log_output.append(data.rstrip())
 
@@ -4900,7 +5746,9 @@ class MainWindow(QMainWindow):
             self.remote_log_output.append(f"[pair-qr] termine (code={code})")
         self.device_manager.poll_async()
 
-    def _discover_tls_connect_targets(self, prefer_host: str | None = None) -> list[str]:
+    def _discover_tls_connect_targets(
+        self, prefer_host: str | None = None
+    ) -> list[str]:
         result = self.adb.run(["mdns", "services"], timeout=12)
         if not result.ok or not result.stdout:
             return []
@@ -4930,7 +5778,9 @@ class MainWindow(QMainWindow):
         return deduped
 
     def _scan_wifi_dialog(self) -> None:
-        subnet, ok = QInputDialog.getText(self, "Scan WiFi ADB", "Prefixe subnet (ex: 192.168.1.)")
+        subnet, ok = QInputDialog.getText(
+            self, "Scan WiFi ADB", "Prefixe subnet (ex: 192.168.1.)"
+        )
         if not ok or not subnet.strip():
             return
         subnet = subnet.strip()
@@ -4958,7 +5808,9 @@ class MainWindow(QMainWindow):
         self.local_list.clear()
         folder_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)
         file_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
-        rows: list[Path] = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+        rows: list[Path] = sorted(
+            path.iterdir(), key=lambda p: (p.is_file(), p.name.lower())
+        )
         for child in rows:
             icon = folder_icon if child.is_dir() else file_icon
             item = QListWidgetItem(icon, child.name)
@@ -5032,13 +5884,17 @@ class MainWindow(QMainWindow):
         if not serial:
             Toast(self, "Aucun appareil connecte")
             return
-        remote_path = self._normalize_remote_path(self.remote_path.text().strip() or "/")
+        remote_path = self._normalize_remote_path(
+            self.remote_path.text().strip() or "/"
+        )
         self.remote_path.setText(remote_path)
 
         def done(result: CommandResult) -> None:
             self.bridge.command_done.emit(("remote_ls", result))
 
-        self.adb.run_async(["shell", "ls", "-1", "-a", "-p", remote_path], serial=serial, callback=done)
+        self.adb.run_async(
+            ["shell", "ls", "-1", "-a", "-p", remote_path], serial=serial, callback=done
+        )
 
     def _normalize_remote_path(self, value: str) -> str:
         path = value.strip() or "/"
@@ -5170,7 +6026,9 @@ class MainWindow(QMainWindow):
         self.apps_risk_summary.setText("Risque apps: LOW=0 MEDIUM=0 HIGH=0")
         self._run_in_worker(
             "apps_list",
-            lambda: self.app_module.list_packages(serial, include_system=include_system),
+            lambda: self.app_module.list_packages(
+                serial, include_system=include_system
+            ),
             {"serial": serial, "include_system": include_system},
         )
 
@@ -5211,7 +6069,9 @@ class MainWindow(QMainWindow):
         self._app_icon_done = 0
         self._app_icon_success = 0
         for package in apps:
-            item = QListWidgetItem(default_icon, self._display_name_for_package(package))
+            item = QListWidgetItem(
+                default_icon, self._display_name_for_package(package)
+            )
             item.setData(Qt.ItemDataRole.UserRole, package)
             item.setToolTip(package)
             item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter)
@@ -5261,7 +6121,10 @@ class MainWindow(QMainWindow):
     def _pump_app_icon_queue(self, serial: str) -> None:
         if not serial:
             return
-        while len(self._app_icon_pending) < self._app_icon_max_pending and self._app_icon_queue:
+        while (
+            len(self._app_icon_pending) < self._app_icon_max_pending
+            and self._app_icon_queue
+        ):
             package = self._app_icon_queue.pop(0)
             self._queue_app_icon_load(serial, package)
 
@@ -5273,7 +6136,9 @@ class MainWindow(QMainWindow):
         self._app_icon_pending.add(key)
 
         def work() -> dict[str, str]:
-            path = self.app_module.fetch_app_icon(serial, package, self._app_icon_cache_dir)
+            path = self.app_module.fetch_app_icon(
+                serial, package, self._app_icon_cache_dir
+            )
             return {
                 "serial": serial,
                 "package": package,
@@ -5285,7 +6150,12 @@ class MainWindow(QMainWindow):
             try:
                 payload = future.result()
             except Exception:  # noqa: BLE001
-                payload = {"serial": serial, "package": package, "icon_path": "", "generation": str(generation)}
+                payload = {
+                    "serial": serial,
+                    "package": package,
+                    "icon_path": "",
+                    "generation": str(generation),
+                }
             self.bridge.command_done.emit(("app_icon", payload))
 
         self.adb.executor.submit(work).add_done_callback(done)
@@ -5316,7 +6186,10 @@ class MainWindow(QMainWindow):
         self._pump_app_analysis_queue(serial)
 
     def _pump_app_analysis_queue(self, serial: str) -> None:
-        while len(self._app_analysis_pending) < self._app_analysis_max_pending and self._app_analysis_queue:
+        while (
+            len(self._app_analysis_pending) < self._app_analysis_max_pending
+            and self._app_analysis_queue
+        ):
             package = self._app_analysis_queue.pop(0)
             self._queue_app_analysis(serial, package)
 
@@ -5353,8 +6226,16 @@ class MainWindow(QMainWindow):
         return mapping.get(risk.upper(), 0)
 
     def _apply_apps_filters(self) -> None:
-        search = self.apps_search.text().strip().lower() if hasattr(self, "apps_search") else ""
-        risk_filter = self.apps_risk_filter.currentText() if hasattr(self, "apps_risk_filter") else "Tous risques"
+        search = (
+            self.apps_search.text().strip().lower()
+            if hasattr(self, "apps_search")
+            else ""
+        )
+        risk_filter = (
+            self.apps_risk_filter.currentText()
+            if hasattr(self, "apps_risk_filter")
+            else "Tous risques"
+        )
 
         for i in range(self.apps_list.count()):
             item = self.apps_list.item(i)
@@ -5364,7 +6245,9 @@ class MainWindow(QMainWindow):
             display = item.text().strip().lower()
             analysis = self._app_analysis.get(package, {})
             risk = str(analysis.get("risk", "")).upper()
-            match_search = (not search) or (search in package.lower()) or (search in display)
+            match_search = (
+                (not search) or (search in package.lower()) or (search in display)
+            )
             if risk_filter == "Tous risques":
                 match_risk = True
             elif risk_filter == "Sans analyse":
@@ -5375,7 +6258,9 @@ class MainWindow(QMainWindow):
 
         self._refresh_apps_risk_table(search=search, risk_filter=risk_filter)
 
-    def _refresh_apps_risk_table(self, search: str = "", risk_filter: str = "Tous risques") -> None:
+    def _refresh_apps_risk_table(
+        self, search: str = "", risk_filter: str = "Tous risques"
+    ) -> None:
         rows: list[dict[str, object]] = []
         for package in self._apps_all_packages:
             analysis = self._app_analysis.get(package, {})
@@ -5389,22 +6274,45 @@ class MainWindow(QMainWindow):
                         continue
                 elif risk != risk_filter:
                     continue
-            rows.append({
-                "package": package,
-                "label": label,
-                "type": str(analysis.get("type", "n/a")),
-                "risk": risk or "n/a",
-                "perm_count": int(analysis.get("permission_count", 0) or 0),
-                "sensitive_count": len(analysis.get("sensitive_permissions", []) or []),
-                "version": str(analysis.get("version", "n/a")),
-                "risk_score": int(analysis.get("risk_score", 0) or 0),
-            })
+            rows.append(
+                {
+                    "package": package,
+                    "label": label,
+                    "type": str(analysis.get("type", "n/a")),
+                    "risk": risk or "n/a",
+                    "perm_count": int(analysis.get("permission_count", 0) or 0),
+                    "sensitive_count": len(
+                        analysis.get("sensitive_permissions", []) or []
+                    ),
+                    "version": str(analysis.get("version", "n/a")),
+                    "risk_score": int(analysis.get("risk_score", 0) or 0),
+                }
+            )
 
-        sort_mode = self.apps_sort_box.currentText() if hasattr(self, "apps_sort_box") else "Tri: Nom"
+        sort_mode = (
+            self.apps_sort_box.currentText()
+            if hasattr(self, "apps_sort_box")
+            else "Tri: Nom"
+        )
         if "Risque" in sort_mode:
-            rows.sort(key=lambda r: (self._risk_rank(str(r["risk"])), int(r["risk_score"]), int(r["perm_count"]), str(r["package"]).lower()), reverse=True)
+            rows.sort(
+                key=lambda r: (
+                    self._risk_rank(str(r["risk"])),
+                    int(r["risk_score"]),
+                    int(r["perm_count"]),
+                    str(r["package"]).lower(),
+                ),
+                reverse=True,
+            )
         elif "Permissions" in sort_mode:
-            rows.sort(key=lambda r: (int(r["perm_count"]), int(r["sensitive_count"]), self._risk_rank(str(r["risk"]))), reverse=True)
+            rows.sort(
+                key=lambda r: (
+                    int(r["perm_count"]),
+                    int(r["sensitive_count"]),
+                    self._risk_rank(str(r["risk"])),
+                ),
+                reverse=True,
+            )
         else:
             rows.sort(key=lambda r: str(r["package"]).lower())
 
@@ -5423,15 +6331,33 @@ class MainWindow(QMainWindow):
             elif risk == "LOW":
                 risk_item.setForeground(QColor("#86efac"))
             self.apps_risk_table.setItem(row, 3, risk_item)
-            self.apps_risk_table.setItem(row, 4, QTableWidgetItem(str(item["perm_count"])))
-            self.apps_risk_table.setItem(row, 5, QTableWidgetItem(str(item["sensitive_count"])))
+            self.apps_risk_table.setItem(
+                row, 4, QTableWidgetItem(str(item["perm_count"]))
+            )
+            self.apps_risk_table.setItem(
+                row, 5, QTableWidgetItem(str(item["sensitive_count"]))
+            )
             self.apps_risk_table.setItem(row, 6, QTableWidgetItem(str(item["version"])))
         self.apps_risk_table.setSortingEnabled(True)
 
-        low = sum(1 for a in self._app_analysis.values() if str(a.get("risk", "")).upper() == "LOW")
-        med = sum(1 for a in self._app_analysis.values() if str(a.get("risk", "")).upper() == "MEDIUM")
-        high = sum(1 for a in self._app_analysis.values() if str(a.get("risk", "")).upper() == "HIGH")
-        self.apps_risk_summary.setText(f"Risque apps: LOW={low} MEDIUM={med} HIGH={high}")
+        low = sum(
+            1
+            for a in self._app_analysis.values()
+            if str(a.get("risk", "")).upper() == "LOW"
+        )
+        med = sum(
+            1
+            for a in self._app_analysis.values()
+            if str(a.get("risk", "")).upper() == "MEDIUM"
+        )
+        high = sum(
+            1
+            for a in self._app_analysis.values()
+            if str(a.get("risk", "")).upper() == "HIGH"
+        )
+        self.apps_risk_summary.setText(
+            f"Risque apps: LOW={low} MEDIUM={med} HIGH={high}"
+        )
 
     def _show_app_analysis(self, package: str) -> None:
         info = self._app_analysis.get(package)
@@ -5488,19 +6414,27 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Exporter analyse apps (JSON)",
-            str(self.base_dir / f"apps_risk_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            str(
+                self.base_dir
+                / f"apps_risk_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            ),
             "JSON (*.json)",
         )
         if not path:
             return
-        Path(path).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        Path(path).write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         Toast(self, "Analyse apps exportee (JSON)")
 
     def _export_apps_analysis_csv(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Exporter analyse apps (CSV)",
-            str(self.base_dir / f"apps_risk_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"),
+            str(
+                self.base_dir
+                / f"apps_risk_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            ),
             "CSV (*.csv)",
         )
         if not path:
@@ -5511,7 +6445,9 @@ class MainWindow(QMainWindow):
             rows.append(
                 {
                     "package": package,
-                    "label": str(info.get("label", self._display_name_for_package(package))),
+                    "label": str(
+                        info.get("label", self._display_name_for_package(package))
+                    ),
                     "type": str(info.get("type", "n/a")),
                     "risk": str(info.get("risk", "n/a")),
                     "risk_score": int(info.get("risk_score", 0) or 0),
@@ -5542,7 +6478,9 @@ class MainWindow(QMainWindow):
             writer.writerows(rows)
         Toast(self, "Analyse apps exportee (CSV)")
 
-    def _on_apps_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
+    def _on_apps_item_changed(
+        self, current: QListWidgetItem | None, _previous: QListWidgetItem | None
+    ) -> None:
         if current is None:
             return
         serial = self._selected_serial()
@@ -5596,17 +6534,27 @@ class MainWindow(QMainWindow):
         serial = self._selected_serial()
         if not serial:
             return
-        self._run_in_worker("system_info", lambda: self.system_module.gather(serial), {"serial": serial})
+        self._run_in_worker(
+            "system_info", lambda: self.system_module.gather(serial), {"serial": serial}
+        )
 
     def _monitor_system(self) -> None:
         serial = self._selected_serial()
         if not serial:
             return
-        self._run_in_worker("system_monitor", lambda: self.system_module.monitor_snapshot(serial), {"serial": serial})
+        self._run_in_worker(
+            "system_monitor",
+            lambda: self.system_module.monitor_snapshot(serial),
+            {"serial": serial},
+        )
 
     def _save_script(self) -> None:
         name = self.script_name.text().strip() or "script_sans_nom"
-        steps = [line.strip() for line in self.script_editor.toPlainText().splitlines() if line.strip()]
+        steps = [
+            line.strip()
+            for line in self.script_editor.toPlainText().splitlines()
+            if line.strip()
+        ]
         if not steps:
             Toast(self, "Script vide")
             return
@@ -5618,7 +6566,11 @@ class MainWindow(QMainWindow):
         serial = self._selected_serial()
         if not serial:
             return
-        steps = [line.strip() for line in self.script_editor.toPlainText().splitlines() if line.strip()]
+        steps = [
+            line.strip()
+            for line in self.script_editor.toPlainText().splitlines()
+            if line.strip()
+        ]
         if not steps:
             return
         results = self.automation_module.run_script(serial, steps)
@@ -5743,7 +6695,9 @@ class MainWindow(QMainWindow):
             return
         commands: list[str] = []
         for i in range(self.batch_queue_list.count()):
-            cmd = str(self.batch_queue_list.item(i).data(Qt.ItemDataRole.UserRole) or "").strip()
+            cmd = str(
+                self.batch_queue_list.item(i).data(Qt.ItemDataRole.UserRole) or ""
+            ).strip()
             if cmd:
                 commands.append(cmd)
         if not commands:
@@ -5778,7 +6732,12 @@ class MainWindow(QMainWindow):
             action="batch_start",
             status="ok",
             message=f"Batch started ({len(commands)} commands)",
-            payload={"commands": len(commands), "workers": workers, "retries": retries, "timeout_s": timeout_s},
+            payload={
+                "commands": len(commands),
+                "workers": workers,
+                "retries": retries,
+                "timeout_s": timeout_s,
+            },
             serial=serial,
         )
         self._run_in_worker(
@@ -5793,7 +6752,13 @@ class MainWindow(QMainWindow):
                 timeout_s=timeout_s,
                 stop_on_error=stop_on_error,
             ),
-            {"serial": serial, "count": len(commands), "workers": workers, "retries": retries, "timeout_s": timeout_s},
+            {
+                "serial": serial,
+                "count": len(commands),
+                "workers": workers,
+                "retries": retries,
+                "timeout_s": timeout_s,
+            },
         )
 
     def _stop_batch_queue(self) -> None:
@@ -5887,7 +6852,9 @@ class MainWindow(QMainWindow):
                 "duration_s": round(time.perf_counter() - started, 3),
             }
 
-        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="batch-worker") as pool:
+        with ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix="batch-worker"
+        ) as pool:
             pending: dict = {}
             completed = 0
             ok_count = 0
@@ -5908,7 +6875,9 @@ class MainWindow(QMainWindow):
                 schedule_one()
 
             while pending:
-                done, _not_done = wait(list(pending.keys()), return_when=FIRST_COMPLETED)
+                done, _not_done = wait(
+                    list(pending.keys()), return_when=FIRST_COMPLETED
+                )
                 for future in done:
                     _meta = pending.pop(future, None)
                     row = future.result()
@@ -5933,7 +6902,12 @@ class MainWindow(QMainWindow):
                     )
                     if stop_on_error and not bool(row.get("ok")):
                         cancel.set()
-                while not cancel.is_set() and not pause.is_set() and len(pending) < max_workers and next_idx < len(work_items):
+                while (
+                    not cancel.is_set()
+                    and not pause.is_set()
+                    and len(pending) < max_workers
+                    and next_idx < len(work_items)
+                ):
                     schedule_one()
 
         finished_at = datetime.utcnow().isoformat() + "Z"
@@ -5960,7 +6934,10 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Exporter rapport batch",
-            str(self.base_dir / f"batch_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"),
+            str(
+                self.base_dir
+                / f"batch_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            ),
             "JSON (*.json)",
         )
         if not path:
@@ -5969,14 +6946,20 @@ class MainWindow(QMainWindow):
             "generated_at": datetime.utcnow().isoformat() + "Z",
             "results": self._batch_results,
         }
-        Path(path).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        Path(path).write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         Toast(self, "Rapport batch exporte")
 
-    def _prepare_command_from_meta(self, meta: dict, allow_cancel: bool = True) -> str | None:
+    def _prepare_command_from_meta(
+        self, meta: dict, allow_cancel: bool = True
+    ) -> str | None:
         command = str(meta.get("command", "")).strip()
         if not command:
             return None
-        placeholders = [str(p).strip() for p in meta.get("placeholders", []) if str(p).strip()]
+        placeholders = [
+            str(p).strip() for p in meta.get("placeholders", []) if str(p).strip()
+        ]
         for placeholder in placeholders:
             default_value = str(self.config.get(f"ui.placeholders.{placeholder}", ""))
             value, ok = QInputDialog.getText(
@@ -6026,7 +7009,10 @@ class MainWindow(QMainWindow):
             return "critique"
         if "root:oui" in root_state.lower() or "su -c" in text:
             return "attention"
-        if any(token in text for token in ["settings put", "svc ", "am force-stop", "pm disable"]):
+        if any(
+            token in text
+            for token in ["settings put", "svc ", "am force-stop", "pm disable"]
+        ):
             return "attention"
         return "safe"
 
@@ -6055,7 +7041,9 @@ class MainWindow(QMainWindow):
         if "settings put" in text:
             return "Note la valeur d'origine pour pouvoir revenir en arriere."
         if "reboot" in text:
-            return "Evite de lancer un reboot pendant une operation de transfert en cours."
+            return (
+                "Evite de lancer un reboot pendant une operation de transfert en cours."
+            )
         return "Teste d'abord sur un appareil non critique puis reproduis en batch."
 
     def _risk_color(self, risk_level: str, root_state: str) -> QColor:
@@ -6098,7 +7086,9 @@ class MainWindow(QMainWindow):
         self.logcat_process.setProgram(self.adb.adb_bin)
         self.logcat_process.setArguments(["-s", serial, "logcat"])
         self.logcat_process.readyReadStandardOutput.connect(self._consume_live_logcat)
-        self.logcat_process.readyReadStandardError.connect(self._consume_live_logcat_error)
+        self.logcat_process.readyReadStandardError.connect(
+            self._consume_live_logcat_error
+        )
         self.logcat_process.start()
         self.live_log_output.append(f"[LIVE] logcat start sur {serial}")
 
@@ -6113,7 +7103,9 @@ class MainWindow(QMainWindow):
     def _consume_live_logcat(self) -> None:
         if self.logcat_process is None:
             return
-        data = bytes(self.logcat_process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        data = bytes(self.logcat_process.readAllStandardOutput()).decode(
+            "utf-8", errors="replace"
+        )
         filter_text = self.logcat_filter.text().strip().lower()
         auto_scroll = bool(self.config.get("ui.logcat_auto_scroll", True))
         for line in data.splitlines():
@@ -6125,7 +7117,9 @@ class MainWindow(QMainWindow):
     def _consume_live_logcat_error(self) -> None:
         if self.logcat_process is None:
             return
-        data = bytes(self.logcat_process.readAllStandardError()).decode("utf-8", errors="replace")
+        data = bytes(self.logcat_process.readAllStandardError()).decode(
+            "utf-8", errors="replace"
+        )
         if data.strip():
             self.live_log_output.append(f"[ERR] {data.strip()}")
 
@@ -6134,7 +7128,9 @@ class MainWindow(QMainWindow):
         if not serial:
             Toast(self, "Aucun appareil actif")
             return
-        reply = QMessageBox.question(self, "Confirmation", f"Redemarrer l'appareil {serial} ?")
+        reply = QMessageBox.question(
+            self, "Confirmation", f"Redemarrer l'appareil {serial} ?"
+        )
         if reply != QMessageBox.StandardButton.Yes:
             return
         res = self.adb.run("reboot", serial=serial)
@@ -6194,12 +7190,16 @@ class MainWindow(QMainWindow):
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_serial = re.sub(r"[^a-zA-Z0-9._-]", "_", serial)
         self._record_local_file = captures_dir / f"record_{safe_serial}_{stamp}.mp4"
-        self._record_remote_file = f"/sdcard/__adb_manager_record_{safe_serial}_{stamp}.mp4"
+        self._record_remote_file = (
+            f"/sdcard/__adb_manager_record_{safe_serial}_{stamp}.mp4"
+        )
         self._record_serial = serial
 
         self.record_process = QProcess(self)
         self.record_process.setProgram(self.adb.adb_bin)
-        self.record_process.setArguments(["-s", serial, "shell", "screenrecord", self._record_remote_file])
+        self.record_process.setArguments(
+            ["-s", serial, "shell", "screenrecord", self._record_remote_file]
+        )
         self.record_process.finished.connect(self._on_record_process_finished)
         self.record_process.start()
         self.statusBar().showMessage("Enregistrement video en cours...")
@@ -6209,7 +7209,12 @@ class MainWindow(QMainWindow):
             action="record_start",
             status="ok",
             message="Screen record started",
-            payload={"remote_file": self._record_remote_file, "local_file": str(self._record_local_file) if self._record_local_file else ""},
+            payload={
+                "remote_file": self._record_remote_file,
+                "local_file": (
+                    str(self._record_local_file) if self._record_local_file else ""
+                ),
+            },
             serial=serial,
         )
 
@@ -6233,7 +7238,11 @@ class MainWindow(QMainWindow):
         serial = self._record_serial
         if serial:
             # Fallback: ask Android side process to stop gracefully.
-            self.adb.run(["shell", "pkill", "-INT", "-x", "screenrecord"], serial=serial, timeout=5)
+            self.adb.run(
+                ["shell", "pkill", "-INT", "-x", "screenrecord"],
+                serial=serial,
+                timeout=5,
+            )
             if self.record_process.waitForFinished(3000):
                 return
 
@@ -6281,7 +7290,9 @@ class MainWindow(QMainWindow):
                 serial=serial,
             )
 
-    def _pull_record_with_retry(self, serial: str, remote: str, local: Path) -> CommandResult:
+    def _pull_record_with_retry(
+        self, serial: str, remote: str, local: Path
+    ) -> CommandResult:
         last = CommandResult(
             ok=False,
             command=["adb", "-s", serial, "pull", remote, str(local)],
@@ -6291,7 +7302,9 @@ class MainWindow(QMainWindow):
         )
         for _ in range(3):
             time.sleep(0.6)
-            last = self.adb.run(["pull", remote, str(local)], serial=serial, timeout=300)
+            last = self.adb.run(
+                ["pull", remote, str(local)], serial=serial, timeout=300
+            )
             if last.ok and local.exists() and local.stat().st_size > 100 * 1024:
                 return last
         return last
@@ -6369,7 +7382,9 @@ class MainWindow(QMainWindow):
         if not file_path.exists():
             self._refresh_captures()
             return
-        reply = QMessageBox.question(self, "Suppression", f"Supprimer {file_path.name} ?")
+        reply = QMessageBox.question(
+            self, "Suppression", f"Supprimer {file_path.name} ?"
+        )
         if reply != QMessageBox.StandardButton.Yes:
             return
         if file_path.suffix.lower() == ".mp4":
@@ -6379,7 +7394,9 @@ class MainWindow(QMainWindow):
 
     def _export_report(self) -> None:
         serial = self._selected_serial()
-        path, _ = QFileDialog.getSaveFileName(self, "Exporter rapport", "adb_report.json", "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exporter rapport", "adb_report.json", "JSON (*.json)"
+        )
         if not path:
             return
         payload = {
@@ -6402,7 +7419,9 @@ class MainWindow(QMainWindow):
                 for s, m, e, ts in self.history.recent_device_history(limit=200)
             ],
         }
-        Path(path).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        Path(path).write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         Toast(self, "Rapport exporte")
         self._audit_event(
             event_type="system",
@@ -6417,7 +7436,11 @@ class MainWindow(QMainWindow):
         serial = self._selected_serial()
         if not serial:
             return
-        self._run_in_worker("full_backup", lambda: self.backup_module.full_backup(serial), {"serial": serial})
+        self._run_in_worker(
+            "full_backup",
+            lambda: self.backup_module.full_backup(serial),
+            {"serial": serial},
+        )
 
     def _selective_backup(self) -> None:
         serial = self._selected_serial()
@@ -6437,7 +7460,9 @@ class MainWindow(QMainWindow):
         serial = self._selected_serial()
         if not serial:
             return
-        backup, _ = QFileDialog.getOpenFileName(self, "Choisir backup", filter="Backup (*.ab)")
+        backup, _ = QFileDialog.getOpenFileName(
+            self, "Choisir backup", filter="Backup (*.ab)"
+        )
         if not backup:
             return
         self._run_in_worker(
@@ -6452,7 +7477,9 @@ class MainWindow(QMainWindow):
         if name == "remote_ls":
             self.remote_list.clear()
             if result.ok:
-                folder_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)
+                folder_icon = self.style().standardIcon(
+                    QStyle.StandardPixmap.SP_DirIcon
+                )
                 file_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
                 base = self._normalize_remote_path(self.remote_path.text())
                 rows: list[tuple[str, bool]] = []
@@ -6495,7 +7522,11 @@ class MainWindow(QMainWindow):
         elif name == "terminal":
             output = result.stdout or result.stderr or "(aucune sortie)"
             self.terminal.append_line(output)
-            command_line = " ".join(result.command[1:]) if isinstance(result, CommandResult) and result.command else ""
+            command_line = (
+                " ".join(result.command[1:])
+                if isinstance(result, CommandResult) and result.command
+                else ""
+            )
             self._audit_event(
                 event_type="debug",
                 action="adb_command",
@@ -6515,7 +7546,9 @@ class MainWindow(QMainWindow):
             elif isinstance(result, CommandResult):
                 command_result = result
             if command_result is not None:
-                output = command_result.stdout or command_result.stderr or "(aucune sortie)"
+                output = (
+                    command_result.stdout or command_result.stderr or "(aucune sortie)"
+                )
                 self.remote_log_output.append(f"[adb:{serial}] {output}")
                 self._audit_event(
                     event_type="debug",
@@ -6528,15 +7561,26 @@ class MainWindow(QMainWindow):
         elif name == "wifi_scan":
             hosts = result
             if not hosts:
-                QMessageBox.information(self, "Scan WiFi", "Aucun host ADB detecte sur le subnet.")
+                QMessageBox.information(
+                    self, "Scan WiFi", "Aucun host ADB detecte sur le subnet."
+                )
                 return
             picks = [f"{h}:5555" for h in hosts[:30]]
-            pick, ok = QInputDialog.getItem(self, "Hosts detectes", "Choisissez une IP a connecter:", picks, 0, False)
+            pick, ok = QInputDialog.getItem(
+                self,
+                "Hosts detectes",
+                "Choisissez une IP a connecter:",
+                picks,
+                0,
+                False,
+            )
             if not ok or not pick:
                 return
             ip = pick.split(":", 1)[0]
             connected = self.device_manager.connect_wifi(ip, 5555)
-            Toast(self, f"Connecte a {pick}" if connected else f"Echec connexion {pick}")
+            Toast(
+                self, f"Connecte a {pick}" if connected else f"Echec connexion {pick}"
+            )
             if connected:
                 self.device_manager.poll_async()
         elif name == "batch_progress":
@@ -6548,9 +7592,13 @@ class MainWindow(QMainWindow):
             last_command = str(payload.get("last_command", ""))
             self.batch_progress.setMaximum(max(1, total))
             self.batch_progress.setValue(done)
-            self.batch_progress_label.setText(f"En cours: {done}/{total} | OK={ok} ERR={err}")
+            self.batch_progress_label.setText(
+                f"En cours: {done}/{total} | OK={ok} ERR={err}"
+            )
             if last_command:
-                self.statusBar().showMessage(f"Batch: {done}/{total} - {last_command[:100]}")
+                self.statusBar().showMessage(
+                    f"Batch: {done}/{total} - {last_command[:100]}"
+                )
         elif name == "transfer_progress":
             payload = result if isinstance(result, dict) else {}
             done = int(payload.get("done", 0))
@@ -6564,7 +7612,9 @@ class MainWindow(QMainWindow):
                     if str(row.get("task_id", "")) == tid:
                         row["status"] = status
                         break
-                self.transfer_log.append(f"[{done}/{total}] {tid} -> {status}: {msg[:220]}")
+                self.transfer_log.append(
+                    f"[{done}/{total}] {tid} -> {status}: {msg[:220]}"
+                )
                 self._refresh_transfer_queue_table()
             self.transfer_progress.setMaximum(max(1, total))
             self.transfer_progress.setValue(done)
@@ -6637,7 +7687,9 @@ class MainWindow(QMainWindow):
         summary = self.audit_module.summarize_session(self._session_id)
         summary["started_at"] = self._current_session_started
         summary["ended_at"] = datetime.utcnow().isoformat() + "Z"
-        self.audit_module.end_session(self._session_id, summary=summary, status="completed")
+        self.audit_module.end_session(
+            self._session_id, summary=summary, status="completed"
+        )
         self.config.save()
         self.device_manager.shutdown()
         self.adb.shutdown()

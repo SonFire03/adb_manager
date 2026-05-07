@@ -83,8 +83,12 @@ class DeviceProfilesTests(unittest.TestCase):
             cfg = ConfigManager(Path(tmp) / "settings.json")
             mod = DeviceProfilesModule(cfg)
 
-            mod.save_profile(DeviceProfile(profile_id="", alias="Pixel A", serial="ABC123"))
-            mod.save_profile(DeviceProfile(profile_id="", alias="Pixel A2", serial="ABC123"))
+            mod.save_profile(
+                DeviceProfile(profile_id="", alias="Pixel A", serial="ABC123")
+            )
+            mod.save_profile(
+                DeviceProfile(profile_id="", alias="Pixel A2", serial="ABC123")
+            )
 
             all_profiles = mod.list_profiles()
             self.assertEqual(len(all_profiles), 1)

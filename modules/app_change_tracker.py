@@ -25,7 +25,9 @@ class AppChangeTrackerModule:
             orisk = str(old_risk.get(pkg, ""))
             nrisk = str(new_risk.get(pkg, ""))
             if orisk and nrisk and orisk != nrisk:
-                risk_changes.append({"package": pkg, "old_risk": orisk, "new_risk": nrisk})
+                risk_changes.append(
+                    {"package": pkg, "old_risk": orisk, "new_risk": nrisk}
+                )
 
         return {
             "summary": {

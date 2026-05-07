@@ -30,9 +30,13 @@ class WorkflowCenterModule:
                 "low",
                 [
                     WorkflowStep("poll", "Refresh devices", "refresh_devices"),
-                    WorkflowStep("inspector", "Run Device Inspector", "device_inspector"),
+                    WorkflowStep(
+                        "inspector", "Run Device Inspector", "device_inspector"
+                    ),
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
-                    WorkflowStep("snapshot", "Capture baseline snapshot", "capture_snapshot"),
+                    WorkflowStep(
+                        "snapshot", "Capture baseline snapshot", "capture_snapshot"
+                    ),
                 ],
             ),
             WorkflowDefinition(
@@ -42,8 +46,12 @@ class WorkflowCenterModule:
                 "low",
                 [
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
-                    WorkflowStep("timeline", "Refresh health timeline", "refresh_health_timeline"),
-                    WorkflowStep("export", "Export health JSON", "export_health_json_auto"),
+                    WorkflowStep(
+                        "timeline", "Refresh health timeline", "refresh_health_timeline"
+                    ),
+                    WorkflowStep(
+                        "export", "Export health JSON", "export_health_json_auto"
+                    ),
                 ],
             ),
             WorkflowDefinition(
@@ -52,7 +60,9 @@ class WorkflowCenterModule:
                 "Collecter health, inspector, audit et captures dans un support bundle.",
                 "low",
                 [
-                    WorkflowStep("inspector", "Run Device Inspector", "device_inspector"),
+                    WorkflowStep(
+                        "inspector", "Run Device Inspector", "device_inspector"
+                    ),
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
                     WorkflowStep("bundle", "Create support bundle", "support_bundle"),
                 ],
@@ -63,9 +73,17 @@ class WorkflowCenterModule:
                 "Transfert guide des dossiers DCIM et Screenshots vers l'hote.",
                 "low",
                 [
-                    WorkflowStep("queue_dcim", "Queue DCIM transfer", "queue_transfer_dcim"),
-                    WorkflowStep("queue_shots", "Queue Screenshots transfer", "queue_transfer_screenshots"),
-                    WorkflowStep("run_queue", "Run transfer queue", "run_transfer_queue"),
+                    WorkflowStep(
+                        "queue_dcim", "Queue DCIM transfer", "queue_transfer_dcim"
+                    ),
+                    WorkflowStep(
+                        "queue_shots",
+                        "Queue Screenshots transfer",
+                        "queue_transfer_screenshots",
+                    ),
+                    WorkflowStep(
+                        "run_queue", "Run transfer queue", "run_transfer_queue"
+                    ),
                 ],
             ),
             WorkflowDefinition(
@@ -86,7 +104,9 @@ class WorkflowCenterModule:
                 "low",
                 [
                     WorkflowStep("poll", "Refresh devices", "refresh_devices"),
-                    WorkflowStep("inspector", "Run Device Inspector", "device_inspector"),
+                    WorkflowStep(
+                        "inspector", "Run Device Inspector", "device_inspector"
+                    ),
                     WorkflowStep("snapshot", "Capture snapshot", "capture_snapshot"),
                 ],
             ),
@@ -97,7 +117,9 @@ class WorkflowCenterModule:
                 "low",
                 [
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
-                    WorkflowStep("timeline", "Refresh health timeline", "refresh_health_timeline"),
+                    WorkflowStep(
+                        "timeline", "Refresh health timeline", "refresh_health_timeline"
+                    ),
                 ],
             ),
             WorkflowDefinition(
@@ -107,8 +129,14 @@ class WorkflowCenterModule:
                 "low",
                 [
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
-                    WorkflowStep("timeline", "Refresh health timeline", "refresh_health_timeline"),
-                    WorkflowStep("transfer_report", "Export transfer report", "export_transfer_report_auto"),
+                    WorkflowStep(
+                        "timeline", "Refresh health timeline", "refresh_health_timeline"
+                    ),
+                    WorkflowStep(
+                        "transfer_report",
+                        "Export transfer report",
+                        "export_transfer_report_auto",
+                    ),
                 ],
             ),
         ]
@@ -122,7 +150,10 @@ class WorkflowCenterModule:
                     "title": w.title,
                     "description": w.description,
                     "impact": w.impact,
-                    "steps": [{"key": s.key, "title": s.title, "action": s.action} for s in w.steps],
+                    "steps": [
+                        {"key": s.key, "title": s.title, "action": s.action}
+                        for s in w.steps
+                    ],
                 }
             )
         return out

@@ -14,7 +14,13 @@ from modules.device_inspector import DeviceInspectorModule
 
 
 class SnapshotCompareModule:
-    def __init__(self, adb: ADBManager, app_module: AppManagerModule, inspector_module: DeviceInspectorModule, snapshots_dir: Path) -> None:
+    def __init__(
+        self,
+        adb: ADBManager,
+        app_module: AppManagerModule,
+        inspector_module: DeviceInspectorModule,
+        snapshots_dir: Path,
+    ) -> None:
         self.adb = adb
         self.app_module = app_module
         self.inspector_module = inspector_module
@@ -22,7 +28,9 @@ class SnapshotCompareModule:
         self.snapshots_dir = snapshots_dir
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
 
-    def capture_snapshot(self, serial: str, device: DeviceInfo | None = None) -> dict[str, Any]:
+    def capture_snapshot(
+        self, serial: str, device: DeviceInfo | None = None
+    ) -> dict[str, Any]:
         ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         inspector = self.inspector_module.inspect(serial, device)
         sysinfo = self._system_properties(serial)
@@ -36,10 +44,22 @@ class SnapshotCompareModule:
             "captured_at": ts,
             "serial": serial,
             "device": {
-                "model": (device.model if device else inspector.get("model", "unknown")),
-                "transport": (device.transport if device else inspector.get("transport", "unknown")),
-                "state": (device.state if device else inspector.get("state", "unknown")),
-                "root": (device.root if device else str(inspector.get("root", "no")).lower() == "yes"),
+                "model": (
+                    device.model if device else inspector.get("model", "unknown")
+                ),
+                "transport": (
+                    device.transport
+                    if device
+                    else inspector.get("transport", "unknown")
+                ),
+                "state": (
+                    device.state if device else inspector.get("state", "unknown")
+                ),
+                "root": (
+                    device.root
+                    if device
+                    else str(inspector.get("root", "no")).lower() == "yes"
+                ),
                 "debug": inspector.get("debug_status", "unknown"),
             },
             "inspector": inspector,
@@ -51,12 +71,18 @@ class SnapshotCompareModule:
         }
         name = f"snapshot_{self._sanitize(serial)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         path = self.snapshots_dir / name
-        path.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False), encoding="utf-8")
+        path.write_text(
+            json.dumps(snapshot, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         snapshot["file"] = str(path)
         return snapshot
 
     def list_snapshots(self) -> list[Path]:
-        return sorted(self.snapshots_dir.glob("snapshot_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        return sorted(
+            self.snapshots_dir.glob("snapshot_*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
 
     def load_snapshot(self, path: Path) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -109,12 +135,22 @@ class SnapshotCompareModule:
         }
         app_changes = self.app_change_tracker.compare(older, newer)
         summary["apps_updated"] = int(app_changes.get("summary", {}).get("updated", 0))
-        summary["apps_risk_changes"] = int(app_changes.get("summary", {}).get("risk_changes", 0))
+        summary["apps_risk_changes"] = int(
+            app_changes.get("summary", {}).get("risk_changes", 0)
+        )
 
         return {
-            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "from": {"captured_at": older.get("captured_at", ""), "serial": older.get("serial", "")},
-            "to": {"captured_at": newer.get("captured_at", ""), "serial": newer.get("serial", "")},
+            "generated_at": datetime.now(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "from": {
+                "captured_at": older.get("captured_at", ""),
+                "serial": older.get("serial", ""),
+            },
+            "to": {
+                "captured_at": newer.get("captured_at", ""),
+                "serial": newer.get("serial", ""),
+            },
             "summary": summary,
             "packages": {"added": added, "removed": removed},
             "app_changes": app_changes,
@@ -137,7 +173,9 @@ class SnapshotCompareModule:
 
     def export_diff_json(self, diff: dict[str, Any], output: Path) -> None:
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(diff, indent=2, ensure_ascii=False), encoding="utf-8")
+        output.write_text(
+            json.dumps(diff, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     def export_diff_html(self, diff: dict[str, Any], output: Path) -> None:
         summary = self._as_dict(diff.get("summary"))
@@ -154,12 +192,24 @@ class SnapshotCompareModule:
             "<style>body{font-family:Arial;background:#0b1220;color:#e5e7eb;margin:20px}h1,h2{color:#93c5fd}pre{white-space:pre-wrap}"
             "table{border-collapse:collapse;width:100%}td,th{border:1px solid #1f2937;padding:6px}th{background:#111827}</style></head><body>",
             "<h1>Snapshot Compare</h1>",
-            "<h2>Summary</h2><pre>" + self._esc(json.dumps(summary, indent=2, ensure_ascii=False)) + "</pre>",
-            "<h2>Packages Added</h2><pre>" + self._esc("\n".join(added) if added else "None") + "</pre>",
-            "<h2>Packages Removed</h2><pre>" + self._esc("\n".join(removed) if removed else "None") + "</pre>",
-            "<h2>App Changes</h2><pre>" + self._esc(json.dumps(app_changes, indent=2, ensure_ascii=False)) + "</pre>",
-            "<h2>Device Changes</h2><pre>" + self._esc(json.dumps(dev_changes, indent=2, ensure_ascii=False)) + "</pre>",
-            "<h2>System Properties Changes</h2><pre>" + self._esc(json.dumps(props, indent=2, ensure_ascii=False)) + "</pre>",
+            "<h2>Summary</h2><pre>"
+            + self._esc(json.dumps(summary, indent=2, ensure_ascii=False))
+            + "</pre>",
+            "<h2>Packages Added</h2><pre>"
+            + self._esc("\n".join(added) if added else "None")
+            + "</pre>",
+            "<h2>Packages Removed</h2><pre>"
+            + self._esc("\n".join(removed) if removed else "None")
+            + "</pre>",
+            "<h2>App Changes</h2><pre>"
+            + self._esc(json.dumps(app_changes, indent=2, ensure_ascii=False))
+            + "</pre>",
+            "<h2>Device Changes</h2><pre>"
+            + self._esc(json.dumps(dev_changes, indent=2, ensure_ascii=False))
+            + "</pre>",
+            "<h2>System Properties Changes</h2><pre>"
+            + self._esc(json.dumps(props, indent=2, ensure_ascii=False))
+            + "</pre>",
             "</body></html>",
         ]
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -204,7 +254,11 @@ class SnapshotCompareModule:
         }
 
     def _package_versions(self, serial: str) -> dict[str, str]:
-        res = self.adb.run(["shell", "pm", "list", "packages", "-3", "--show-versioncode"], serial=serial, timeout=40)
+        res = self.adb.run(
+            ["shell", "pm", "list", "packages", "-3", "--show-versioncode"],
+            serial=serial,
+            timeout=40,
+        )
         if not res.ok:
             return {}
         out: dict[str, str] = {}

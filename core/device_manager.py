@@ -13,7 +13,9 @@ from core.utils import DeviceInfo
 
 logger = logging.getLogger(__name__)
 
-DEVICES_RE = re.compile(r"^(?P<serial>\S+)\s+(?P<state>device|offline|unauthorized)(?P<extra>.*)$")
+DEVICES_RE = re.compile(
+    r"^(?P<serial>\S+)\s+(?P<state>device|offline|unauthorized)(?P<extra>.*)$"
+)
 MODEL_RE = re.compile(r"model:(\S+)")
 TRANSPORT_RE = re.compile(r"transport_id:(\d+)")
 
@@ -52,8 +54,12 @@ class DeviceManager:
             extra = m.group("extra")
             model_match = MODEL_RE.search(extra)
             model = model_match.group(1) if model_match else "unknown"
-            transport = "usb" if "usb:" in extra or TRANSPORT_RE.search(extra) else "wifi"
-            info = DeviceInfo(serial=serial, state=state, model=model, transport=transport)
+            transport = (
+                "usb" if "usb:" in extra or TRANSPORT_RE.search(extra) else "wifi"
+            )
+            info = DeviceInfo(
+                serial=serial, state=state, model=model, transport=transport
+            )
             if state == "device":
                 info.android_version = self._android_version(serial)
                 info.root = self._has_root(serial)
@@ -65,7 +71,9 @@ class DeviceManager:
         self._notify(devices)
         return devices
 
-    def _track_events(self, old: dict[str, DeviceInfo], new: dict[str, DeviceInfo]) -> None:
+    def _track_events(
+        self, old: dict[str, DeviceInfo], new: dict[str, DeviceInfo]
+    ) -> None:
         for serial, info in new.items():
             if serial not in old:
                 self.adb.history.add_device_event(serial, info.model, "connected")
@@ -74,7 +82,9 @@ class DeviceManager:
                 self.adb.history.add_device_event(serial, info.model, "disconnected")
 
     def _android_version(self, serial: str) -> str:
-        result = self.adb.run("shell getprop ro.build.version.release", serial=serial, timeout=8)
+        result = self.adb.run(
+            "shell getprop ro.build.version.release", serial=serial, timeout=8
+        )
         return result.stdout.strip() if result.ok and result.stdout else "unknown"
 
     def _has_root(self, serial: str) -> bool:
@@ -108,4 +118,3 @@ class DeviceManager:
 
     def shutdown(self) -> None:
         self.pool.shutdown(wait=False, cancel_futures=True)
-

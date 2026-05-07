@@ -16,8 +16,7 @@ class NotificationCenterModule:
 
     def _setup(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS notifications (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     created_at TEXT NOT NULL,
@@ -30,8 +29,7 @@ class NotificationCenterModule:
                     link_value TEXT DEFAULT '',
                     is_read INTEGER DEFAULT 0
                 )
-                """
-            )
+                """)
             conn.commit()
 
     def add(
@@ -111,12 +109,16 @@ class NotificationCenterModule:
 
     def unread_count(self) -> int:
         with sqlite3.connect(self.db_path) as conn:
-            row = conn.execute("SELECT COUNT(*) FROM notifications WHERE is_read = 0").fetchone()
+            row = conn.execute(
+                "SELECT COUNT(*) FROM notifications WHERE is_read = 0"
+            ).fetchone()
         return int(row[0]) if row else 0
 
     def mark_read(self, notification_id: int) -> None:
         with self._lock, sqlite3.connect(self.db_path) as conn:
-            conn.execute("UPDATE notifications SET is_read = 1 WHERE id = ?", (notification_id,))
+            conn.execute(
+                "UPDATE notifications SET is_read = 1 WHERE id = ?", (notification_id,)
+            )
             conn.commit()
 
     def mark_all_read(self) -> None:

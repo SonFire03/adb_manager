@@ -27,4 +27,3 @@ class Toast(QLabel):
         self.anim.setEndValue(0.0)
         self.anim.finished.connect(self.close)
         self.anim.start()
-

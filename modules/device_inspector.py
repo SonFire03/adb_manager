@@ -17,7 +17,11 @@ class DeviceInspectorModule:
             "last_refresh": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "state": device.state if device is not None else "unknown",
             "transport": device.transport if device is not None else "unknown",
-            "root": "yes" if (device.root if device is not None else self._has_root(serial)) else "no",
+            "root": (
+                "yes"
+                if (device.root if device is not None else self._has_root(serial))
+                else "no"
+            ),
         }
 
         props = {
@@ -35,13 +39,21 @@ class DeviceInspectorModule:
             value = res.stdout.strip() if res.ok and res.stdout else "n/a"
             info[key] = value
 
-        adb_enabled = self.adb.run(["shell", "settings", "get", "global", "adb_enabled"], serial=serial, timeout=8)
+        adb_enabled = self.adb.run(
+            ["shell", "settings", "get", "global", "adb_enabled"],
+            serial=serial,
+            timeout=8,
+        )
         if adb_enabled.ok and adb_enabled.stdout.strip() in {"0", "1"}:
-            info["debug_status"] = "enabled" if adb_enabled.stdout.strip() == "1" else "disabled"
+            info["debug_status"] = (
+                "enabled" if adb_enabled.stdout.strip() == "1" else "disabled"
+            )
         else:
             info["debug_status"] = "unknown"
 
-        battery = self.adb.run(["shell", "dumpsys", "battery"], serial=serial, timeout=10)
+        battery = self.adb.run(
+            ["shell", "dumpsys", "battery"], serial=serial, timeout=10
+        )
         info["battery_level"] = "n/a"
         if battery.ok:
             level = re.search(r"level:\s*(\d+)", battery.stdout)
@@ -54,7 +66,9 @@ class DeviceInspectorModule:
                 info["battery_level"] = f"{level.group(1)}%"
             info["battery_status"] = status.group(1) if status else "n/a"
 
-        storage = self.adb.run(["shell", "df", "-k", "/data"], serial=serial, timeout=10)
+        storage = self.adb.run(
+            ["shell", "df", "-k", "/data"], serial=serial, timeout=10
+        )
         total_kb, avail_kb = self._parse_df_kb(storage.stdout) if storage.ok else (0, 0)
         if total_kb > 0:
             info["storage_total"] = self._fmt_bytes(total_kb * 1024)
@@ -65,13 +79,23 @@ class DeviceInspectorModule:
 
         wm_size = self.adb.run(["shell", "wm", "size"], serial=serial, timeout=8)
         wm_density = self.adb.run(["shell", "wm", "density"], serial=serial, timeout=8)
-        info["screen_resolution"] = self._parse_wm_size(wm_size.stdout) if wm_size.ok else "n/a"
-        info["screen_density"] = self._parse_wm_density(wm_density.stdout) if wm_density.ok else "n/a"
+        info["screen_resolution"] = (
+            self._parse_wm_size(wm_size.stdout) if wm_size.ok else "n/a"
+        )
+        info["screen_density"] = (
+            self._parse_wm_density(wm_density.stdout) if wm_density.ok else "n/a"
+        )
 
-        ip_wifi = self.adb.run(["shell", "ip", "-f", "inet", "addr", "show", "wlan0"], serial=serial, timeout=8)
+        ip_wifi = self.adb.run(
+            ["shell", "ip", "-f", "inet", "addr", "show", "wlan0"],
+            serial=serial,
+            timeout=8,
+        )
         info["ip_local"] = self._parse_ipv4(ip_wifi.stdout) if ip_wifi.ok else "n/a"
         if info["ip_local"] == "n/a":
-            ip_fallback = self.adb.run(["shell", "ifconfig", "wlan0"], serial=serial, timeout=8)
+            ip_fallback = self.adb.run(
+                ["shell", "ifconfig", "wlan0"], serial=serial, timeout=8
+            )
             if ip_fallback.ok:
                 info["ip_local"] = self._parse_ipv4(ip_fallback.stdout)
 

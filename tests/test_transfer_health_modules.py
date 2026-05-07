@@ -10,7 +10,9 @@ from modules.device_health import DeviceHealthModule
 
 
 class _R:
-    def __init__(self, ok: bool = True, stdout: str = "", stderr: str = "", returncode: int = 0) -> None:
+    def __init__(
+        self, ok: bool = True, stdout: str = "", stderr: str = "", returncode: int = 0
+    ) -> None:
         self.ok = ok
         self.stdout = stdout
         self.stderr = stderr
@@ -31,9 +33,14 @@ class _StubADB:
         if "ls -ld" in cmd:
             return _R(True, "drwxrwx--- /sdcard/Download")
         if "dumpsys battery" in cmd:
-            return _R(True, "level: 80\nscale: 100\nstatus: 2\nhealth: 2\ntemperature: 350\n")
+            return _R(
+                True, "level: 80\nscale: 100\nstatus: 2\nhealth: 2\ntemperature: 350\n"
+            )
         if "df -k /data" in cmd:
-            return _R(True, "Filesystem 1K-blocks Used Available Use% Mounted on\n/data 1000000 500000 500000 50% /data\n")
+            return _R(
+                True,
+                "Filesystem 1K-blocks Used Available Use% Mounted on\n/data 1000000 500000 500000 50% /data\n",
+            )
         if "dumpsys cpuinfo" in cmd:
             return _R(True, "22.0% TOTAL: 10.0% user + 12.0% kernel")
         if "cat /proc/meminfo" in cmd:
@@ -92,7 +99,14 @@ class DeviceHealthTests(unittest.TestCase):
         mod = DeviceHealthModule(_StubADB())  # type: ignore[arg-type]
         report = mod.run(
             "ABC",
-            DeviceInfo(serial="ABC", state="device", model="Pixel", transport="usb", android_version="14", root=False),
+            DeviceInfo(
+                serial="ABC",
+                state="device",
+                model="Pixel",
+                transport="usb",
+                android_version="14",
+                root=False,
+            ),
         )
         self.assertIn("score", report)
         self.assertIn("status", report)

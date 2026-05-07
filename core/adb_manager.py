@@ -18,7 +18,9 @@ class ADBManager:
         self.history = history
         self.adb_bin = str(config.get("adb.binary", "adb"))
         self.timeout = int(config.get("adb.default_timeout", 20))
-        self.executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="adb-worker")
+        self.executor = ThreadPoolExecutor(
+            max_workers=8, thread_name_prefix="adb-worker"
+        )
         self._lock = Lock()
         self.safe_mode = bool(config.get("app.safe_mode", True))
 
@@ -27,7 +29,9 @@ class ADBManager:
         blocked = ["rm -rf /", "mkfs", "dd if=", "setenforce 0"]
         return self.safe_mode and any(token in text for token in blocked)
 
-    def _run(self, args: list[str], serial: str | None = None, timeout: int | None = None) -> CommandResult:
+    def _run(
+        self, args: list[str], serial: str | None = None, timeout: int | None = None
+    ) -> CommandResult:
         full_cmd: list[str] = [self.adb_bin]
         if serial:
             full_cmd.extend(["-s", serial])
@@ -73,10 +77,17 @@ class ADBManager:
                 stderr=f"Erreur inattendue: {exc}",
                 returncode=1,
             )
-        self.history.add_command_event(serial, " ".join(args), result.ok, result.stdout, result.stderr)
+        self.history.add_command_event(
+            serial, " ".join(args), result.ok, result.stdout, result.stderr
+        )
         return result
 
-    def run(self, adb_args: str | list[str], serial: str | None = None, timeout: int | None = None) -> CommandResult:
+    def run(
+        self,
+        adb_args: str | list[str],
+        serial: str | None = None,
+        timeout: int | None = None,
+    ) -> CommandResult:
         args = shlex.split(adb_args) if isinstance(adb_args, str) else adb_args
         if self._is_blocked_in_safe_mode(args):
             result = CommandResult(
@@ -86,7 +97,9 @@ class ADBManager:
                 stderr="Commande bloquee par le mode securise.",
                 returncode=126,
             )
-            self.history.add_command_event(serial, " ".join(args), result.ok, result.stdout, result.stderr)
+            self.history.add_command_event(
+                serial, " ".join(args), result.ok, result.stdout, result.stderr
+            )
             return result
         with self._lock:
             return self._run(args=args, serial=serial, timeout=timeout)
@@ -104,7 +117,9 @@ class ADBManager:
             future.add_done_callback(lambda f: callback(f.result()))
         return future
 
-    def shell(self, command: str, serial: str | None = None, timeout: int | None = None) -> CommandResult:
+    def shell(
+        self, command: str, serial: str | None = None, timeout: int | None = None
+    ) -> CommandResult:
         return self.run(["shell", command], serial=serial, timeout=timeout)
 
     def shutdown(self) -> None:
