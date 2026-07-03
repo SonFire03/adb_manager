@@ -5,7 +5,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen)](https://github.com/SonFire03/adb_manager/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/SonFire03/adb_manager?display_name=tag)](https://github.com/SonFire03/adb_manager/releases)
 
-Desktop console (PySide6) for **local Android operations** via ADB: device health, guided workflows, transfers, troubleshooting evidence, and traceable reporting.
+Desktop console (PySide6) for **local Android operations** via ADB: device health, guided workflows, transfers, troubleshooting evidence, traceable reporting, and reusable workspace bundles.
 
 Current stable release: **v2.5.5**
 
@@ -14,7 +14,8 @@ Current stable release: **v2.5.5**
 - Centraliser les opérations ADB dans une UI claire et productive.
 - Réduire les erreurs humaines avec des checks guidés et une exécution traçable.
 - Produire des artefacts concrets (audit trail, snapshot compare, support bundles).
-- Rester crédible: outil d’admin locale, sans bypass sécurité ni promesse de diagnostic certifié.
+- Reprendre son environnement rapidement avec des bundles de configuration, profils et presets exportables.
+- Rester crédible: outil d'admin locale, sans bypass sécurité ni promesse de diagnostic certifié.
 
 ## Signature Features
 
@@ -23,6 +24,9 @@ Run functional health checks, collect evidence, and export a structured ZIP doss
 
 ### 2) Snapshot Compare + App Change Tracker
 Compare before/after states, highlight package additions/removals/updates, and surface risk changes in one diff view.
+
+### 3) Workspace Reuse + HTML Reports
+Export and import app settings, device profiles, transfer presets, and batch packs. Most reports now also have HTML output for easier review and sharing.
 
 ## Quick Workflows
 
@@ -56,11 +60,19 @@ Compare before/after states, highlight package additions/removals/updates, and s
 - Multi-device USB/Wi-Fi detection and pairing (`adb pair`, QR helper).
 - Device Inspector + ADB Health Diagnostic.
 - Data Transfer Center + Smart Sync preview modes.
+- Transfer presets, batch packs, and reusable profile bundles.
 - Application inventory + App Risk View.
 - Session Audit Trail, Reports, Snapshot Compare.
 - Workflow Center + Support Bundle export.
 - Notification Center + Fleet Health overview.
 - Remote control via scrcpy + ADB fallback actions.
+
+## UI Highlights
+
+- Global dark theme refined for contrast and readability.
+- Light theme strengthened with clearer panel borders and table separation.
+- Dashboard summary now surfaces profiles, transfer presets, batch packs, favorites, and health status.
+- Batch queue actions now support reordering and selection cleanup.
 
 ## Architecture (rapide)
 
@@ -112,6 +124,7 @@ Only the most demonstrative views are kept here:
 - Unit test suite covers core modules and ops modules (notifications, sync, bundle, app-change logic).
 - Local quality commands are standardized via `Makefile` (`make check`, `make coverage`, `make release-check`).
 - Dedicated core-quality gate enforces minimum coverage on `core/*`.
+- HTML outputs are available for key reports to simplify manual review and handoff.
 - Current command:
 
 ```bash
