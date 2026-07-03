@@ -6,6 +6,7 @@ from pathlib import Path
 
 from modules.session_audit import SessionAuditModule
 from modules.snapshot_compare import SnapshotCompareModule
+from modules.support_bundle import SupportBundleModule
 
 
 class SessionAuditTests(unittest.TestCase):
@@ -172,6 +173,45 @@ class SnapshotCompareTests(unittest.TestCase):
             self.assertIn("com.a", diff["packages"]["removed"])
             self.assertIn("transport", diff["device_changes"])
             self.assertGreater(diff["summary"]["system_properties_changed"], 0)
+
+
+class SupportBundleTests(unittest.TestCase):
+    def test_bundle_contains_manifest_and_index(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            mod = SupportBundleModule(Path(tmp))
+            out = mod.create_bundle(
+                bundle_name="support",
+                serial="ABC",
+                include={
+                    "device_inspector": True,
+                    "device_health": True,
+                    "audit_session": True,
+                    "snapshot_diff": False,
+                    "app_risk_summary": True,
+                    "health_timeline": True,
+                    "captures": False,
+                    "logs": False,
+                },
+                data={
+                    "device_inspector": {"model": "Pixel"},
+                    "device_health": {"score": 90},
+                    "audit_session": {"events": []},
+                    "app_risk_summary": {"count": 1},
+                    "health_timeline": [],
+                },
+                output_dir=Path(tmp),
+            )
+            self.assertTrue(out["ok"])
+            zip_path = Path(out["zip_file"])
+            self.assertTrue(zip_path.exists())
+            import zipfile
+
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                self.assertIn("index.html", zf.namelist())
+                self.assertIn("manifest.json", zf.namelist())
+                index_html = zf.read("index.html").decode("utf-8")
+                self.assertIn("Included toggles", index_html)
+                self.assertIn("device_health", index_html)
 
 
 if __name__ == "__main__":

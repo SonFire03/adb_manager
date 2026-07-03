@@ -94,11 +94,26 @@ class SupportBundleModule:
 
     def _write_html_index(self, zf: zipfile.ZipFile, manifest: dict[str, Any]) -> None:
         rows = "".join(f"<li>{self._esc(x)}</li>" for x in manifest.get("files", []))
+        include = manifest.get("include", {})
+        include_rows = ""
+        if isinstance(include, dict):
+            include_rows = "".join(
+                f"<li><strong>{self._esc(k)}</strong>: {self._esc(v)}</li>"
+                for k, v in sorted(include.items())
+            )
         html = (
-            "<!doctype html><html><head><meta charset='utf-8'><title>Support Bundle</title></head><body>"
+            "<!doctype html><html><head><meta charset='utf-8'><title>Support Bundle</title>"
+            "<style>body{font-family:Arial;background:#0b1220;color:#e5e7eb;margin:20px}"
+            "h1,h2{color:#93c5fd}ul{line-height:1.6}code{background:#111827;padding:2px 5px;border-radius:4px}"
+            ".meta{padding:10px;background:#111827;border:1px solid #1f2937;margin-bottom:16px}</style></head><body>"
             f"<h1>Support Bundle: {self._esc(manifest.get('bundle_name', 'bundle'))}</h1>"
+            "<div class='meta'>"
             f"<p>Serial: {self._esc(manifest.get('serial', ''))}</p>"
             f"<p>Generated: {self._esc(manifest.get('generated_at', ''))}</p>"
+            f"<p>Files: {self._esc(len(manifest.get('files', [])))}</p>"
+            "</div>"
+            "<h2>Included toggles</h2><ul>"
+            f"{include_rows or '<li>Aucun toggle documente</li>'}</ul>"
             "<h2>Included files</h2><ul>"
             f"{rows}</ul></body></html>"
         )

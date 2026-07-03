@@ -8424,6 +8424,51 @@ class MainWindow(QMainWindow):
         Path(path).write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
         )
+        html_path = Path(path).with_suffix(".html")
+        device_rows = []
+        for dev in self._last_devices:
+            device_rows.append(
+                "<tr>"
+                f"<td>{escape(dev.serial)}</td>"
+                f"<td>{escape(dev.state)}</td>"
+                f"<td>{escape(dev.model)}</td>"
+                f"<td>{escape(dev.transport)}</td>"
+                f"<td>{escape(dev.android_version)}</td>"
+                f"<td>{escape('yes' if dev.root else 'no')}</td>"
+                "</tr>"
+            )
+        history_rows = []
+        for row in payload["history"][:100]:
+            history_rows.append(
+                "<tr>"
+                f"<td>{escape(str(row.get('timestamp', '')))}</td>"
+                f"<td>{escape(str(row.get('serial', '')))}</td>"
+                f"<td>{escape(str(row.get('model', '')))}</td>"
+                f"<td>{escape(str(row.get('event', '')))}</td>"
+                "</tr>"
+            )
+        html = (
+            "<!doctype html><html><head><meta charset='utf-8'><title>ADB Report</title>"
+            "<style>body{font-family:Arial;background:#0b1220;color:#e5e7eb;margin:20px}"
+            "table{width:100%;border-collapse:collapse;margin-bottom:18px}"
+            "th,td{border:1px solid #1f2937;padding:6px;font-size:12px;vertical-align:top}"
+            "th{background:#111827}h1,h2{color:#93c5fd}</style></head><body>"
+            "<h1>ADB Manager Report</h1>"
+            f"<p>Generated: {escape(payload['generated_at'])}</p>"
+            f"<p>Active device: {escape(str(serial or 'n/a'))}</p>"
+            f"<p>Devices: {len(self._last_devices)} | History rows: {len(payload['history'])}</p>"
+            "<h2>Devices</h2>"
+            "<table><thead><tr><th>Serial</th><th>State</th><th>Model</th><th>Transport</th><th>Android</th><th>Root</th></tr></thead>"
+            f"<tbody>{''.join(device_rows)}</tbody></table>"
+            "<h2>System Info</h2><pre>"
+            f"{escape(json.dumps(self._last_system_info, indent=2, ensure_ascii=False))}"
+            "</pre>"
+            "<h2>History</h2>"
+            "<table><thead><tr><th>Timestamp</th><th>Serial</th><th>Model</th><th>Event</th></tr></thead>"
+            f"<tbody>{''.join(history_rows)}</tbody></table>"
+            "</body></html>"
+        )
+        html_path.write_text(html, encoding="utf-8")
         Toast(self, "Rapport exporte")
         self._audit_event(
             event_type="system",

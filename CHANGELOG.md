@@ -7,6 +7,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Rapport global HTML plus lisible.
+- Index HTML enrichi pour les support bundles.
 - Export/import dédié pour les profils appareils.
 - Export/import dédié pour les presets de transfert.
 - Réordonnancement de la file batch.
