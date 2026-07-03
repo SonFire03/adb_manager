@@ -7,6 +7,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Deep `DeviceHealthModule` tests to cover scoring, sections, parsing, and failure branches.
+
+### Changed
+- CI now enforces a critical-modules aggregate gate (`device_health`, `smart_sync`, `data_transfer`).
+
+## [2.5.6] - 2026-05-07
+
+### Added
 - New `SmartSyncModule` tests for decision/scan/execute branches.
 
 ### Changed

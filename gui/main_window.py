@@ -1079,6 +1079,10 @@ class MainWindow(QMainWindow):
         self.batch_pause_btn = QPushButton("Pause")
         self.batch_stop_btn = QPushButton("Stop")
         self.batch_export_btn = QPushButton("Exporter rapport batch")
+        self.batch_pack_box = QComboBox()
+        self.batch_save_pack_btn = QPushButton("Sauver pack")
+        self.batch_load_pack_btn = QPushButton("Charger pack")
+        self.batch_delete_pack_btn = QPushButton("Supprimer pack")
         self.batch_add_btn.setObjectName("ghostBtn")
         self.batch_remove_btn.setObjectName("ghostBtn")
         self.batch_clear_btn.setObjectName("ghostBtn")
@@ -1086,6 +1090,9 @@ class MainWindow(QMainWindow):
         self.batch_pause_btn.setObjectName("ghostBtn")
         self.batch_stop_btn.setObjectName("dangerBtn")
         self.batch_export_btn.setObjectName("successBtn")
+        self.batch_save_pack_btn.setObjectName("ghostBtn")
+        self.batch_load_pack_btn.setObjectName("ghostBtn")
+        self.batch_delete_pack_btn.setObjectName("dangerBtn")
         batch_controls.addWidget(self.batch_add_btn)
         batch_controls.addWidget(self.batch_remove_btn)
         batch_controls.addWidget(self.batch_clear_btn)
@@ -1095,6 +1102,14 @@ class MainWindow(QMainWindow):
         batch_controls.addWidget(self.batch_export_btn)
         batch_controls.addStretch()
         batch_layout.addLayout(batch_controls)
+        batch_pack_row = QHBoxLayout()
+        batch_pack_row.setSpacing(8)
+        batch_pack_row.addWidget(QLabel("Batch packs"))
+        batch_pack_row.addWidget(self.batch_pack_box, 1)
+        batch_pack_row.addWidget(self.batch_save_pack_btn)
+        batch_pack_row.addWidget(self.batch_load_pack_btn)
+        batch_pack_row.addWidget(self.batch_delete_pack_btn)
+        batch_layout.addLayout(batch_pack_row)
         batch_options = QHBoxLayout()
         batch_options.setSpacing(8)
         batch_options.addWidget(QLabel("Workers"))
@@ -1178,12 +1193,16 @@ class MainWindow(QMainWindow):
         self.batch_pause_btn.clicked.connect(self._toggle_batch_pause)
         self.batch_stop_btn.clicked.connect(self._stop_batch_queue)
         self.batch_export_btn.clicked.connect(self._export_batch_report)
+        self.batch_save_pack_btn.clicked.connect(self._save_batch_pack)
+        self.batch_load_pack_btn.clicked.connect(self._load_selected_batch_pack)
+        self.batch_delete_pack_btn.clicked.connect(self._delete_selected_batch_pack)
         self.batch_workers_spin.valueChanged.connect(self._save_batch_options)
         self.batch_retry_spin.valueChanged.connect(self._save_batch_options)
         self.batch_timeout_spin.valueChanged.connect(self._save_batch_options)
         self.batch_stop_on_error.toggled.connect(self._save_batch_options)
         self.command_catalog.itemDoubleClicked.connect(self._run_catalog_item)
         self.command_catalog.currentItemChanged.connect(self._on_command_selected)
+        self._refresh_batch_packs()
 
     def _build_remote_tab(self) -> None:
         tab = QWidget()
@@ -1488,6 +1507,110 @@ class MainWindow(QMainWindow):
             "ui.batch_stop_on_error", bool(self.batch_stop_on_error.isChecked())
         )
         self.config.save()
+
+    def _batch_saved_packs(self) -> dict[str, Any]:
+        raw = self.config.get("ui.batch_saved_packs", {})
+        return raw if isinstance(raw, dict) else {}
+
+    def _refresh_batch_packs(self) -> None:
+        if not hasattr(self, "batch_pack_box"):
+            return
+        current = str(self.batch_pack_box.currentData() or "")
+        packs = self._batch_saved_packs()
+        self.batch_pack_box.blockSignals(True)
+        self.batch_pack_box.clear()
+        self.batch_pack_box.addItem("Pack batch: aucun", "")
+        for name in sorted(packs.keys()):
+            self.batch_pack_box.addItem(name, name)
+        if current:
+            idx = self.batch_pack_box.findData(current)
+            if idx >= 0:
+                self.batch_pack_box.setCurrentIndex(idx)
+        self.batch_pack_box.blockSignals(False)
+
+    def _selected_batch_commands(self) -> list[dict[str, str]]:
+        out: list[dict[str, str]] = []
+        for i in range(self.batch_queue_list.count()):
+            item = self.batch_queue_list.item(i)
+            if item is None:
+                continue
+            command = str(item.data(Qt.ItemDataRole.UserRole) or "").strip()
+            if not command:
+                continue
+            label = str(item.text() or "").strip()
+            out.append({"label": label, "command": command})
+        return out
+
+    def _save_batch_pack(self) -> None:
+        name, ok = QInputDialog.getText(self, "Sauver pack batch", "Nom du pack")
+        if not ok or not name.strip():
+            return
+        pack_name = name.strip()
+        packs = dict(self._batch_saved_packs())
+        packs[pack_name] = {
+            "commands": self._selected_batch_commands(),
+            "options": {
+                "workers": int(self.batch_workers_spin.value()),
+                "retries": int(self.batch_retry_spin.value()),
+                "timeout_s": int(self.batch_timeout_spin.value()),
+                "stop_on_error": bool(self.batch_stop_on_error.isChecked()),
+            },
+        }
+        self.config.set("ui.batch_saved_packs", packs)
+        self.config.save()
+        self._refresh_batch_packs()
+        idx = self.batch_pack_box.findData(pack_name)
+        if idx >= 0:
+            self.batch_pack_box.setCurrentIndex(idx)
+        Toast(self, f"Pack batch sauvegarde: {pack_name}")
+
+    def _load_selected_batch_pack(self) -> None:
+        name = str(self.batch_pack_box.currentData() or "").strip()
+        if not name:
+            return
+        packs = self._batch_saved_packs()
+        pack = packs.get(name, {})
+        if not isinstance(pack, dict):
+            return
+        commands = pack.get("commands", [])
+        if not isinstance(commands, list):
+            return
+        self.batch_queue_list.clear()
+        for row in commands:
+            item = row if isinstance(row, dict) else {}
+            command = str(item.get("command", "")).strip()
+            if not command:
+                continue
+            label = str(item.get("label", command)).strip() or command
+            qitem = QListWidgetItem(label)
+            qitem.setData(Qt.ItemDataRole.UserRole, command)
+            self.batch_queue_list.addItem(qitem)
+        options = pack.get("options", {})
+        if isinstance(options, dict):
+            if "workers" in options:
+                self.batch_workers_spin.setValue(int(options.get("workers", 2)))
+            if "retries" in options:
+                self.batch_retry_spin.setValue(int(options.get("retries", 1)))
+            if "timeout_s" in options:
+                self.batch_timeout_spin.setValue(int(options.get("timeout_s", 120)))
+            if "stop_on_error" in options:
+                self.batch_stop_on_error.setChecked(
+                    bool(options.get("stop_on_error", False))
+                )
+        Toast(self, f"Pack batch charge: {name}")
+
+    def _delete_selected_batch_pack(self) -> None:
+        name = str(self.batch_pack_box.currentData() or "").strip()
+        if not name:
+            return
+        packs = dict(self._batch_saved_packs())
+        if name not in packs:
+            return
+        del packs[name]
+        self.config.set("ui.batch_saved_packs", packs)
+        self.config.save()
+        self._refresh_batch_packs()
+        Toast(self, f"Pack batch supprime: {name}")
 
     def _root_state_from_requirement(self, root_required: str) -> str:
         lower = root_required.lower()
@@ -7385,9 +7508,35 @@ class MainWindow(QMainWindow):
             "generated_at": datetime.utcnow().isoformat() + "Z",
             "results": self._batch_results,
         }
-        Path(path).write_text(
+        out = Path(path)
+        out.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
         )
+        html_path = out.with_suffix(".html")
+        rows = []
+        for row in self._batch_results:
+            rows.append(
+                "<tr>"
+                f"<td>{escape(str(row.get('index', '')))}</td>"
+                f"<td>{escape(str(row.get('command', '')))}</td>"
+                f"<td>{escape(str(row.get('ok', '')))}</td>"
+                f"<td>{escape(str(row.get('returncode', '')))}</td>"
+                f"<td>{escape(str(row.get('attempt_count', '')))}</td>"
+                f"<td>{escape(str(row.get('duration_s', '')))}</td>"
+                f"<td>{escape(str(row.get('stderr', '') or row.get('stdout', '')))}</td>"
+                "</tr>"
+            )
+        html = (
+            "<!doctype html><html><head><meta charset='utf-8'><title>Batch Report</title>"
+            "<style>body{font-family:Arial;background:#0b1220;color:#e5e7eb;margin:20px}"
+            "table{width:100%;border-collapse:collapse}th,td{border:1px solid #1f2937;padding:6px;font-size:12px;vertical-align:top}"
+            "th{background:#111827}</style></head><body>"
+            f"<h1>Batch Report</h1><p>Generated: {escape(payload['generated_at'])}</p>"
+            f"<p>Results: {len(self._batch_results)}</p>"
+            "<table><thead><tr><th>#</th><th>Command</th><th>OK</th><th>Return</th><th>Attempts</th><th>Duration(s)</th><th>Output</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table></body></html>"
+        )
+        html_path.write_text(html, encoding="utf-8")
         Toast(self, "Rapport batch exporte")
 
     def _prepare_command_from_meta(
