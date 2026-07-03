@@ -32,6 +32,8 @@ class TransferTask:
     dry_run: bool = False
     verify_integrity: bool = True
     checksum_algorithm: str = "sha256"
+    retry_count: int = 0
+    retry_delay_s: float = 0.0
 
 
 class DataTransferModule:
@@ -49,6 +51,8 @@ class DataTransferModule:
         dry_run: bool = False,
         verify_integrity: bool = True,
         checksum_algorithm: str = "sha256",
+        retry_count: int = 0,
+        retry_delay_s: float = 0.0,
     ) -> TransferTask:
         return TransferTask(
             task_id=f"tx_{uuid.uuid4().hex[:10]}",
@@ -61,6 +65,8 @@ class DataTransferModule:
             dry_run=dry_run,
             verify_integrity=verify_integrity,
             checksum_algorithm=checksum_algorithm,
+            retry_count=max(0, int(retry_count)),
+            retry_delay_s=max(0.0, float(retry_delay_s)),
         )
 
     def preset_sources(self, preset_name: str) -> list[str]:
@@ -152,45 +158,82 @@ class DataTransferModule:
             "detail": "",
         }
 
-        if task.direction == "host_to_device":
-            source_path = Path(task.source)
-            if not source_path.exists():
-                return {
-                    "ok": False,
-                    "task": asdict(task),
-                    "status": "error",
-                    "message": f"Source locale introuvable: {source_path}",
-                    "estimate": estimate,
-                }
-            result = self.adb.run(
-                ["push", str(source_path), task.destination],
-                serial=task.serial,
-                timeout=900,
-            )
-            target_path = self._resolve_device_target(task.destination, source_path)
-            verify = self._verify_remote_path(task.serial, target_path)
-            if task.verify_integrity:
-                integrity = self._verify_remote_integrity(
+        def _attempt_once() -> tuple[Any, dict[str, Any], dict[str, Any]]:
+            if task.direction == "host_to_device":
+                source_path = Path(task.source)
+                if not source_path.exists():
+                    return (
+                        None,
+                        {"ok": False, "detail": f"missing source ({source_path})"},
+                        {
+                            "requested": bool(task.verify_integrity),
+                            "checked": False,
+                            "ok": False,
+                            "algorithm": task.checksum_algorithm,
+                            "detail": "source missing",
+                        },
+                    )
+                result_local = self.adb.run(
+                    ["push", str(source_path), task.destination],
                     serial=task.serial,
-                    local_source=source_path,
-                    remote_target=target_path,
-                    preferred_algorithm=task.checksum_algorithm,
+                    timeout=900,
                 )
-        else:
+                target_path = self._resolve_device_target(task.destination, source_path)
+                verify_local = self._verify_remote_path(task.serial, target_path)
+                integrity_local = integrity
+                if task.verify_integrity:
+                    integrity_local = self._verify_remote_integrity(
+                        serial=task.serial,
+                        local_source=source_path,
+                        remote_target=target_path,
+                        preferred_algorithm=task.checksum_algorithm,
+                    )
+                return result_local, verify_local, integrity_local
             dest_path = Path(task.destination)
             dest_path.parent.mkdir(parents=True, exist_ok=True)
-            result = self.adb.run(
+            result_local = self.adb.run(
                 ["pull", task.source, str(dest_path)], serial=task.serial, timeout=900
             )
             target_path = self._resolve_local_target(task.source, dest_path)
-            verify = self._verify_local_path(target_path)
+            verify_local = self._verify_local_path(target_path)
+            integrity_local = integrity
             if task.verify_integrity:
-                integrity = self._verify_local_integrity(
+                integrity_local = self._verify_local_integrity(
                     serial=task.serial,
                     remote_source=task.source,
                     local_target=target_path,
                     preferred_algorithm=task.checksum_algorithm,
                 )
+            return result_local, verify_local, integrity_local
+
+        result = None
+        verify: dict[str, Any] = {"ok": False, "detail": "transfer not executed"}
+        attempts = max(0, int(task.retry_count)) + 1
+        for attempt in range(attempts):
+            result, verify, integrity = _attempt_once()
+            if result is None:
+                break
+            ok = bool(result.ok) and bool(verify.get("ok", False))
+            if task.verify_integrity and integrity["checked"] and not integrity["ok"]:
+                ok = False
+            if ok:
+                break
+            if attempt < attempts - 1 and task.retry_delay_s > 0:
+                import time
+
+                time.sleep(task.retry_delay_s)
+
+        if result is None:
+            return {
+                "ok": False,
+                "task": asdict(task),
+                "status": "error",
+                "message": f"Source locale introuvable: {task.source}",
+                "estimate": estimate,
+                "verification": verify,
+                "integrity": integrity,
+                "returncode": 1,
+            }
 
         ok = bool(result.ok) and bool(verify.get("ok", False))
         if task.verify_integrity and integrity["checked"] and not integrity["ok"]:

@@ -21,6 +21,7 @@ class WorkflowStep:
     kind: str = "action"
     optional: bool = False
     notes: str = ""
+    condition: str = ""
 
 
 @dataclass(slots=True)
@@ -69,7 +70,10 @@ class WorkflowCenterModule:
                     ),
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
                     WorkflowStep(
-                        "snapshot", "Capture baseline snapshot", "capture_snapshot"
+                        "snapshot",
+                        "Capture baseline snapshot",
+                        "capture_snapshot",
+                        condition="include_snapshot",
                     ),
                 ],
             ),
@@ -161,6 +165,12 @@ class WorkflowCenterModule:
                 True,
                 [
                     WorkflowVariable(
+                        "include_logcat",
+                        "Include logcat",
+                        "Active la collecte logcat dans le flux debug.",
+                        "true",
+                    ),
+                    WorkflowVariable(
                         "logcat_lines",
                         "Logcat lines",
                         "Nombre de lignes recuperees pour le diagnostic.",
@@ -170,7 +180,12 @@ class WorkflowCenterModule:
                 [
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
                     WorkflowStep("adb_health", "Run ADB Health Check", "adb_health"),
-                    WorkflowStep("logcat", "Load recent logcat", "load_logcat_recent"),
+                    WorkflowStep(
+                        "logcat",
+                        "Load recent logcat",
+                        "load_logcat_recent",
+                        condition="include_logcat",
+                    ),
                 ],
             ),
             WorkflowDefinition(
@@ -185,7 +200,12 @@ class WorkflowCenterModule:
                     WorkflowStep(
                         "inspector", "Run Device Inspector", "device_inspector"
                     ),
-                    WorkflowStep("snapshot", "Capture snapshot", "capture_snapshot"),
+                    WorkflowStep(
+                        "snapshot",
+                        "Capture snapshot",
+                        "capture_snapshot",
+                        condition="include_snapshot",
+                    ),
                 ],
             ),
             WorkflowDefinition(
@@ -251,14 +271,15 @@ class WorkflowCenterModule:
                         for v in w.variables
                     ],
                     "steps": [
-                        {
-                            "key": s.key,
-                            "title": s.title,
-                            "action": s.action,
-                            "kind": s.kind,
-                            "optional": s.optional,
-                            "notes": s.notes,
-                        }
+                    {
+                        "key": s.key,
+                        "title": s.title,
+                        "action": s.action,
+                        "kind": s.kind,
+                        "optional": s.optional,
+                        "notes": s.notes,
+                        "condition": s.condition,
+                    }
                         for s in w.steps
                     ],
                 }

@@ -303,6 +303,11 @@ class WorkflowCenterTests(unittest.TestCase):
         self.assertTrue(onboard["supports_dry_run"])
         self.assertGreaterEqual(len(onboard["variables"]), 1)
         self.assertIn("notes", onboard["steps"][0])
+        snapshot_steps = [
+            step for step in onboard["steps"] if step["action"] == "capture_snapshot"
+        ]
+        self.assertTrue(snapshot_steps)
+        self.assertEqual(snapshot_steps[0]["condition"], "include_snapshot")
 
 
 if __name__ == "__main__":

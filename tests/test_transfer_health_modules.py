@@ -121,6 +121,34 @@ class DataTransferTests(unittest.TestCase):
         self.assertFalse(task.verify_integrity)
         self.assertEqual(task.checksum_algorithm, "md5")
 
+    def test_execute_task_retries_after_transient_failure(self) -> None:
+        class _FlakyADB(_StubADB):
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def run(self, args, serial=None, timeout=None):  # noqa: ANN001
+                cmd = " ".join(args)
+                if "push" in cmd and "/sdcard/retry" in cmd:
+                    self.calls += 1
+                    if self.calls == 1:
+                        return _R(False, "", "temporary push failure", 1)
+                return super().run(args, serial=serial, timeout=timeout)
+
+        mod = DataTransferModule(_FlakyADB())  # type: ignore[arg-type]
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "file.txt"
+            src.write_text("demo", encoding="utf-8")
+            task = mod.make_task(
+                serial="ABC",
+                direction="host_to_device",
+                source=str(src),
+                destination="/sdcard/retry",
+                retry_count=1,
+            )
+            res = mod.execute_task(task)
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["status"], "success")
+
     def test_estimate_host_source_missing(self) -> None:
         task = self.mod.make_task(
             serial="ABC",

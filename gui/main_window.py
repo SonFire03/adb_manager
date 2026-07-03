@@ -2083,6 +2083,14 @@ class MainWindow(QMainWindow):
         self.transfer_verify_checksum.setChecked(True)
         self.transfer_checksum_algo = QComboBox()
         self.transfer_checksum_algo.addItems(["sha256", "md5"])
+        self.transfer_retry_count = QSpinBox()
+        self.transfer_retry_count.setRange(0, 5)
+        self.transfer_retry_count.setValue(1)
+        self.transfer_retry_count.setPrefix("Retry ")
+        self.transfer_retry_delay = QSpinBox()
+        self.transfer_retry_delay.setRange(0, 60)
+        self.transfer_retry_delay.setValue(0)
+        self.transfer_retry_delay.setSuffix("s")
         self.sync_mode_box = QComboBox()
         self.sync_mode_box.addItems(
             [
@@ -2098,25 +2106,39 @@ class MainWindow(QMainWindow):
         self.sync_run_btn.setObjectName("successBtn")
         self.transfer_start_btn = QPushButton("Executer queue")
         self.transfer_clear_btn = QPushButton("Vider queue")
+        self.transfer_retry_failed_btn = QPushButton("Rejouer echec")
         self.transfer_export_btn = QPushButton("Export rapport transfert")
         self.transfer_start_btn.setObjectName("successBtn")
         self.transfer_clear_btn.setObjectName("dangerBtn")
+        self.transfer_retry_failed_btn.setObjectName("ghostBtn")
         self.transfer_export_btn.setObjectName("ghostBtn")
         action_row.addWidget(self.transfer_dry_run)
         action_row.addWidget(self.transfer_verify_checksum)
         action_row.addWidget(self.transfer_checksum_algo)
+        action_row.addWidget(self.transfer_retry_count)
+        action_row.addWidget(self.transfer_retry_delay)
         action_row.addWidget(self.sync_mode_box)
         action_row.addWidget(self.sync_preview_btn)
         action_row.addWidget(self.sync_run_btn)
         action_row.addStretch()
         action_row.addWidget(self.transfer_start_btn)
         action_row.addWidget(self.transfer_clear_btn)
+        action_row.addWidget(self.transfer_retry_failed_btn)
         action_row.addWidget(self.transfer_export_btn)
         layout.addLayout(action_row)
 
-        self.transfer_queue_table = QTableWidget(0, 7)
+        self.transfer_queue_table = QTableWidget(0, 8)
         self.transfer_queue_table.setHorizontalHeaderLabels(
-            ["ID", "Direction", "Preset", "Source", "Destination", "Dry-run", "Etat"]
+            [
+                "ID",
+                "Direction",
+                "Preset",
+                "Source",
+                "Destination",
+                "Dry-run",
+                "Retry",
+                "Etat",
+            ]
         )
         self.transfer_queue_table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows
@@ -2162,6 +2184,7 @@ class MainWindow(QMainWindow):
         self.transfer_clear_btn.clicked.connect(self._clear_transfer_queue)
         self.transfer_start_btn.clicked.connect(self._run_transfer_queue)
         self.transfer_export_btn.clicked.connect(self._export_transfer_report)
+        self.transfer_retry_failed_btn.clicked.connect(self._retry_failed_transfers)
         self.sync_preview_btn.clicked.connect(self._preview_smart_sync)
         self.sync_run_btn.clicked.connect(self._run_smart_sync)
         self.transfer_save_preset_btn.clicked.connect(self._save_transfer_preset)
@@ -2292,6 +2315,8 @@ class MainWindow(QMainWindow):
             "dry_run": bool(self.transfer_dry_run.isChecked()),
             "verify_integrity": bool(self.transfer_verify_checksum.isChecked()),
             "checksum_algorithm": self.transfer_checksum_algo.currentText().strip(),
+            "retry_count": int(self.transfer_retry_count.value()),
+            "retry_delay_s": int(self.transfer_retry_delay.value()),
         }
         self.config.set("transfer.saved_presets", presets)
         self.config.save()
@@ -2346,6 +2371,8 @@ class MainWindow(QMainWindow):
         idx = self.transfer_checksum_algo.findText(checksum)
         if idx >= 0:
             self.transfer_checksum_algo.setCurrentIndex(idx)
+        self.transfer_retry_count.setValue(int(item.get("retry_count", 1)))
+        self.transfer_retry_delay.setValue(int(item.get("retry_delay_s", 0)))
 
     def _build_device_health_tab(self) -> None:
         tab = QWidget()
@@ -2451,9 +2478,23 @@ class MainWindow(QMainWindow):
         self.health_timeline_table.setMaximumHeight(220)
         history_l.addWidget(self.health_timeline_table)
 
-        self.health_fleet_table = QTableWidget(0, 5)
+        fleet_top = QHBoxLayout()
+        self.health_fleet_tag_filter = QComboBox()
+        self.health_fleet_tag_filter.addItem("Tous tags", "")
+        fleet_top.addWidget(QLabel("Fleet tags"))
+        fleet_top.addWidget(self.health_fleet_tag_filter)
+        fleet_top.addStretch()
+        history_l.addLayout(fleet_top)
+        self.health_fleet_table = QTableWidget(0, 6)
         self.health_fleet_table.setHorizontalHeaderLabels(
-            ["Device", "Transport", "Last Score", "Last Status", "Last Check"]
+            [
+                "Device",
+                "Transport",
+                "Tags",
+                "Last Score",
+                "Last Status",
+                "Last Check",
+            ]
         )
         self.health_fleet_table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows
@@ -2482,6 +2523,9 @@ class MainWindow(QMainWindow):
             self._refresh_health_timeline
         )
         self.health_timeline_date_to.textChanged.connect(self._refresh_health_timeline)
+        self.health_fleet_tag_filter.currentIndexChanged.connect(
+            self._refresh_health_fleet
+        )
         self._refresh_health_timeline()
 
     def _build_workflows_tab(self) -> None:
@@ -2717,13 +2761,17 @@ class MainWindow(QMainWindow):
             self._workflow_var_widgets[key] = widget
 
     def _workflow_step_enabled(
-        self, action: str, vars_state: dict[str, str]
+        self, step: dict[str, Any], vars_state: dict[str, str]
     ) -> bool:
-        if action == "capture_snapshot":
-            return self._parse_bool_text(vars_state.get("include_snapshot", "true"))
-        if action == "support_bundle":
+        condition = str(step.get("condition", "")).strip()
+        if not condition:
+            action = str(step.get("action", ""))
+            if action == "capture_snapshot":
+                condition = "include_snapshot"
+        if not condition:
             return True
-        return True
+        raw = vars_state.get(condition, "true")
+        return self._parse_bool_text(str(raw))
 
     def _on_workflow_selected(self) -> None:
         wf = self._selected_workflow()
@@ -2753,8 +2801,10 @@ class MainWindow(QMainWindow):
             step = s if isinstance(s, dict) else {}
             title = step.get("title", "")
             action = step.get("action", "")
+            condition = str(step.get("condition", "")).strip()
             notes = str(step.get("notes", "")).strip()
-            lines.append(f"- {title} ({action})")
+            suffix = f" if {condition}" if condition else ""
+            lines.append(f"- {title} ({action}){suffix}")
             if notes:
                 lines.append(f"  {notes}")
         self.workflow_desc.setPlainText("\n".join(lines))
@@ -2791,7 +2841,7 @@ class MainWindow(QMainWindow):
             step = raw if isinstance(raw, dict) else {}
             action = str(step.get("action", ""))
             title = str(step.get("title", action))
-            if not self._workflow_step_enabled(action, workflow_vars):
+            if not self._workflow_step_enabled(step, workflow_vars):
                 logs.append(f"SKIP {title}")
                 continue
             logs.append(f"START {title}")
@@ -2807,11 +2857,6 @@ class MainWindow(QMainWindow):
                         serial, self._current_device_info()
                     )
                 elif action == "capture_snapshot":
-                    if not self._parse_bool_text(
-                        workflow_vars.get("include_snapshot", "true")
-                    ):
-                        logs.append("SKIP capture_snapshot disabled by workflow variable")
-                        continue
                     snap = self.snapshot_module.capture_snapshot(
                         serial, self._current_device_info()
                     )
@@ -3176,6 +3221,8 @@ class MainWindow(QMainWindow):
             self.transfer_queue_table.setItem(
                 row, 5, QTableWidgetItem("yes" if bool(item.get("dry_run")) else "no")
             )
+            retry_label = f"{int(item.get('retry_count', 0))}x/{int(item.get('retry_delay_s', 0))}s"
+            self.transfer_queue_table.setItem(row, 6, QTableWidgetItem(retry_label))
             status_item = QTableWidgetItem(str(item.get("status", "queued")))
             status = str(item.get("status", "")).lower()
             if status in {"error", "fail"}:
@@ -3184,7 +3231,7 @@ class MainWindow(QMainWindow):
                 status_item.setForeground(QColor("#fcd34d"))
             elif status in {"success", "ok", "done", "dry_run"}:
                 status_item.setForeground(QColor("#86efac"))
-            self.transfer_queue_table.setItem(row, 6, status_item)
+            self.transfer_queue_table.setItem(row, 7, status_item)
 
     def _add_transfer_task(self) -> None:
         serial = self._selected_serial()
@@ -3220,6 +3267,8 @@ class MainWindow(QMainWindow):
                 verify_integrity=bool(self.transfer_verify_checksum.isChecked()),
                 checksum_algorithm=self.transfer_checksum_algo.currentText().strip()
                 or "sha256",
+                retry_count=int(self.transfer_retry_count.value()),
+                retry_delay_s=float(self.transfer_retry_delay.value()),
             )
             row = {
                 "task_id": task.task_id,
@@ -3232,6 +3281,8 @@ class MainWindow(QMainWindow):
                 "dry_run": task.dry_run,
                 "verify_integrity": task.verify_integrity,
                 "checksum_algorithm": task.checksum_algorithm,
+                "retry_count": task.retry_count,
+                "retry_delay_s": task.retry_delay_s,
                 "status": "queued",
             }
             self._transfer_queue.append(row)
@@ -3249,6 +3300,42 @@ class MainWindow(QMainWindow):
         self.transfer_progress.setValue(0)
         self._refresh_transfer_queue_table()
         self.transfer_log.append("[queue] videe")
+
+    def _retry_failed_transfers(self) -> None:
+        if self._transfer_running:
+            Toast(self, "Transfer queue en cours")
+            return
+        failed = [
+            rep
+            for rep in self._transfer_reports
+            if str(rep.get("status", "")).lower() in {"error", "fail", "partial"}
+        ]
+        if not failed:
+            Toast(self, "Aucun transfert a rejouer")
+            return
+        for rep in failed:
+            task = rep.get("task", {}) if isinstance(rep, dict) else {}
+            row = {
+                "task_id": str(task.get("task_id", "")) or f"retry_{datetime.now().strftime('%H%M%S')}",
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "serial": str(task.get("serial", "")),
+                "direction": str(task.get("direction", "device_to_host")),
+                "source": str(task.get("source", "")),
+                "destination": str(task.get("destination", "")),
+                "preset": str(task.get("preset", "")),
+                "dry_run": bool(task.get("dry_run", False)),
+                "verify_integrity": bool(task.get("verify_integrity", True)),
+                "checksum_algorithm": str(
+                    task.get("checksum_algorithm", self._transfer_checksum_algorithm)
+                ),
+                "retry_count": max(0, int(task.get("retry_count", 1))),
+                "retry_delay_s": float(task.get("retry_delay_s", 0)),
+                "status": "queued",
+            }
+            self._transfer_queue.append(row)
+        self._refresh_transfer_queue_table()
+        self.transfer_log.append(f"[queue] {len(failed)} echec(s) remis en file")
+        Toast(self, f"{len(failed)} transfert(s) remis en file")
 
     def _run_transfer_queue(self) -> None:
         if self._transfer_running:
@@ -3278,6 +3365,12 @@ class MainWindow(QMainWindow):
                     verify_integrity=bool(item.get("verify_integrity", True)),
                     checksum_algorithm=str(
                         item.get("checksum_algorithm", self._transfer_checksum_algorithm)
+                    ),
+                    retry_count=int(
+                        item.get("retry_count", self.transfer_retry_count.value())
+                    ),
+                    retry_delay_s=float(
+                        item.get("retry_delay_s", self.transfer_retry_delay.value())
                     ),
                 )
                 task.task_id = str(item.get("task_id", task.task_id))
@@ -3579,6 +3672,11 @@ class MainWindow(QMainWindow):
     def _refresh_health_fleet(self) -> None:
         if not hasattr(self, "health_fleet_table"):
             return
+        current_tag = (
+            str(self.health_fleet_tag_filter.currentData() or "").strip()
+            if hasattr(self, "health_fleet_tag_filter")
+            else ""
+        )
         by_serial: dict[str, dict[str, Any]] = {}
         for row in self._health_history_rows:
             serial = str(row.get("serial", "")).strip()
@@ -3592,8 +3690,17 @@ class MainWindow(QMainWindow):
             key=lambda item: item[1].get("timestamp", ""),
             reverse=True,
         )
-        self.health_fleet_table.setRowCount(len(ordered))
-        for r, (serial, row) in enumerate(ordered):
+        rows_to_show: list[tuple[str, dict[str, Any], list[str]]] = []
+        tag_values: set[str] = set()
+        for serial, row in ordered:
+            tags = self._profile_tags_for_serial(serial)
+            tag_values.update(tags)
+            if current_tag and current_tag not in tags:
+                continue
+            rows_to_show.append((serial, row, tags))
+        self._refresh_health_fleet_tag_filter(sorted(tag_values))
+        self.health_fleet_table.setRowCount(len(rows_to_show))
+        for r, (serial, row, tags) in enumerate(rows_to_show):
             dev = devices.get(serial)
             transport = dev.transport if dev is not None else ""
             score = int(row.get("score", -1))
@@ -3601,6 +3708,7 @@ class MainWindow(QMainWindow):
             ts = str(row.get("timestamp", ""))
             self.health_fleet_table.setItem(r, 0, QTableWidgetItem(serial))
             self.health_fleet_table.setItem(r, 1, QTableWidgetItem(transport))
+            self.health_fleet_table.setItem(r, 2, QTableWidgetItem(", ".join(tags)))
             score_item = QTableWidgetItem(str(score) if score >= 0 else "n/a")
             if score >= 0:
                 if score < 40:
@@ -3609,9 +3717,31 @@ class MainWindow(QMainWindow):
                     score_item.setForeground(QColor("#fcd34d"))
                 else:
                     score_item.setForeground(QColor("#86efac"))
-            self.health_fleet_table.setItem(r, 2, score_item)
-            self.health_fleet_table.setItem(r, 3, QTableWidgetItem(status))
-            self.health_fleet_table.setItem(r, 4, QTableWidgetItem(ts))
+            self.health_fleet_table.setItem(r, 3, score_item)
+            self.health_fleet_table.setItem(r, 4, QTableWidgetItem(status))
+            self.health_fleet_table.setItem(r, 5, QTableWidgetItem(ts))
+
+    def _profile_tags_for_serial(self, serial: str) -> list[str]:
+        profile = self.profiles_module.find_match(serial)
+        if profile is None:
+            return []
+        tags = profile.tags or []
+        return sorted({str(tag).strip() for tag in tags if str(tag).strip()})
+
+    def _refresh_health_fleet_tag_filter(self, tags: list[str]) -> None:
+        if not hasattr(self, "health_fleet_tag_filter"):
+            return
+        current = str(self.health_fleet_tag_filter.currentData() or "")
+        self.health_fleet_tag_filter.blockSignals(True)
+        self.health_fleet_tag_filter.clear()
+        self.health_fleet_tag_filter.addItem("Tous tags", "")
+        for tag in tags:
+            self.health_fleet_tag_filter.addItem(tag, tag)
+        if current:
+            idx = self.health_fleet_tag_filter.findData(current)
+            if idx >= 0:
+                self.health_fleet_tag_filter.setCurrentIndex(idx)
+        self.health_fleet_tag_filter.blockSignals(False)
 
     def _export_health_timeline_csv(self) -> None:
         if not self._health_history_rows:
