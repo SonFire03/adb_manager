@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+from copy import deepcopy
 from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -53,6 +54,12 @@ class ConfigManager:
         self.path.write_text(
             json.dumps(self._data, indent=2, ensure_ascii=False), encoding="utf-8"
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        return deepcopy(self._data)
+
+    def replace(self, data: dict[str, Any]) -> None:
+        self._data = deepcopy(data) if isinstance(data, dict) else {}
 
     def get(self, dotted_key: str, default: Any = None) -> Any:
         node: Any = self._data

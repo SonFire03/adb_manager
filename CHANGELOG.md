@@ -7,6 +7,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Bundle de configuration exportable/importable pour settings, profils et favoris commandes.
 - Deep `DeviceHealthModule` tests to cover scoring, sections, parsing, and failure branches.
 
 ### Changed

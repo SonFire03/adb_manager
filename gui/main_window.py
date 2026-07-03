@@ -101,6 +101,7 @@ from modules.notification_center import NotificationCenterModule
 from modules.session_audit import SessionAuditModule
 from modules.smart_sync import SmartSyncModule
 from modules.snapshot_compare import SnapshotCompareModule
+from modules.settings_bundle import export_settings_bundle, import_settings_bundle
 from modules.support_bundle import SupportBundleModule
 from modules.system_info import SystemInfoModule
 from modules.workflow_center import WorkflowCenterModule
@@ -1632,12 +1633,7 @@ class MainWindow(QMainWindow):
         return QColor("#d1d5db")
 
     def _load_favorite_commands(self) -> set[str]:
-        if not self._commands_config_file.exists():
-            return set()
-        try:
-            data = json.loads(self._commands_config_file.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            return set()
+        data = self._commands_payload()
         favorites = data.get("favorites", [])
         out: set[str] = set()
         for item in favorites:
@@ -1660,6 +1656,15 @@ class MainWindow(QMainWindow):
         self._commands_config_file.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
         )
+
+    def _commands_payload(self) -> dict[str, Any]:
+        if not self._commands_config_file.exists():
+            return {"favorites": [], "custom": []}
+        try:
+            data = json.loads(self._commands_config_file.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return {"favorites": [], "custom": []}
+        return data if isinstance(data, dict) else {"favorites": [], "custom": []}
 
     def _toggle_selected_favorite(self) -> None:
         item = self.command_catalog.currentItem()
@@ -2134,6 +2139,28 @@ class MainWindow(QMainWindow):
         split.setStretchFactor(0, 3)
         split.setStretchFactor(1, 2)
         layout.addWidget(split, 1)
+
+        backup = QGroupBox("Configuration et profils")
+        backup.setObjectName("panelCard")
+        backup_l = QVBoxLayout(backup)
+        backup_l.setContentsMargins(10, 10, 10, 10)
+        backup_l.setSpacing(8)
+        backup_l.addWidget(
+            QLabel(
+                "Sauvegarde et restauration du bundle config: settings, profils, "
+                "favoris et presets."
+            )
+        )
+        backup_row = QHBoxLayout()
+        self.config_export_btn = QPushButton("Exporter bundle config")
+        self.config_import_btn = QPushButton("Importer bundle config")
+        self.config_export_btn.setObjectName("successBtn")
+        self.config_import_btn.setObjectName("ghostBtn")
+        backup_row.addWidget(self.config_export_btn)
+        backup_row.addWidget(self.config_import_btn)
+        backup_row.addStretch()
+        backup_l.addLayout(backup_row)
+        layout.addWidget(backup)
         self.tabs.addTab(tab, "Reports")
 
         self.audit_refresh_btn.clicked.connect(self._refresh_audit_views)
@@ -2150,6 +2177,8 @@ class MainWindow(QMainWindow):
         self.snapshot_compare_btn.clicked.connect(self._compare_selected_snapshots)
         self.snapshot_export_json_btn.clicked.connect(self._export_snapshot_diff_json)
         self.snapshot_export_html_btn.clicked.connect(self._export_snapshot_diff_html)
+        self.config_export_btn.clicked.connect(self._export_settings_bundle)
+        self.config_import_btn.clicked.connect(self._import_settings_bundle)
 
         self._refresh_audit_views()
         self._refresh_snapshot_boxes()
@@ -5452,6 +5481,108 @@ class MainWindow(QMainWindow):
             self.profile_box.setCurrentIndex(idx)
         self._apply_profile(profile)
         self.statusBar().showMessage(f"Profil auto-charge: {profile.alias}")
+
+    def _config_bundle_default_path(self) -> Path:
+        return self.base_dir / "backups" / (
+            f"adb_manager_bundle_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        )
+
+    def _settings_snapshot_payload(self) -> dict[str, Any]:
+        return {
+            "settings": self.config.to_dict(),
+            "commands": self._commands_payload(),
+        }
+
+    def _sync_ui_from_config(self) -> None:
+        if hasattr(self, "theme_box"):
+            self.theme_box.setCurrentText(str(self.config.get("app.theme", "dark")))
+        if hasattr(self, "density_box"):
+            self.density_box.setCurrentText(
+                str(self.config.get("ui.density", "comfortable"))
+            )
+        if hasattr(self, "lang_box"):
+            self.lang_box.setCurrentText(str(self.config.get("app.language", "fr")))
+        if hasattr(self, "command_search"):
+            self.command_search.setText(str(self.config.get("ui.command_search", "")))
+        if hasattr(self, "favorites_only"):
+            self.favorites_only.setChecked(
+                bool(self.config.get("ui.command_favorites_only", False))
+            )
+        if hasattr(self, "batch_workers_spin"):
+            self.batch_workers_spin.setValue(int(self.config.get("ui.batch_workers", 2)))
+        if hasattr(self, "batch_retry_spin"):
+            self.batch_retry_spin.setValue(int(self.config.get("ui.batch_retry", 1)))
+        if hasattr(self, "batch_timeout_spin"):
+            self.batch_timeout_spin.setValue(
+                int(self.config.get("ui.batch_timeout_s", 120))
+            )
+        if hasattr(self, "batch_stop_on_error"):
+            self.batch_stop_on_error.setChecked(
+                bool(self.config.get("ui.batch_stop_on_error", False))
+            )
+        self._favorite_commands = self._load_favorite_commands()
+        self._refresh_profile_box()
+        self._refresh_transfer_saved_presets()
+        self._refresh_batch_packs()
+        self._rebuild_command_catalog()
+
+    def _export_settings_bundle(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exporter bundle configuration",
+            str(self._config_bundle_default_path()),
+            "ADB Manager bundle (*.zip)",
+        )
+        if not path:
+            return
+        try:
+            snapshot = self._settings_snapshot_payload()
+            export_settings_bundle(
+                Path(path), snapshot["settings"], snapshot["commands"]
+            )
+        except Exception as exc:  # noqa: BLE001
+            Toast(self, f"Echec export config: {exc}")
+            return
+        Toast(self, f"Bundle config exporte: {Path(path).name}")
+
+    def _import_settings_bundle(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Importer bundle configuration",
+            str(self.base_dir / "backups"),
+            "ADB Manager bundle (*.zip)",
+        )
+        if not path:
+            return
+        bundle_path = Path(path)
+        if not bundle_path.exists():
+            Toast(self, "Bundle introuvable")
+            return
+        reply = QMessageBox.question(
+            self,
+            "Importer bundle",
+            "Remplacer la configuration courante par ce bundle ?",
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            payload = import_settings_bundle(bundle_path)
+            settings = payload["settings"]
+            commands = payload["commands"]
+            self.config.replace(settings)
+            self.config.save()
+            self._commands_config_file.parent.mkdir(parents=True, exist_ok=True)
+            self._commands_config_file.write_text(
+                json.dumps(commands, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+        except Exception as exc:  # noqa: BLE001
+            Toast(self, f"Echec import config: {exc}")
+            return
+        self._sync_ui_from_config()
+        self._apply_sidebar_state(
+            bool(self.config.get("ui.sidebar_collapsed", False))
+        )
+        Toast(self, f"Bundle config importe: {bundle_path.name}")
 
     def _refresh_device_inspector(self) -> None:
         serial = self._selected_serial()

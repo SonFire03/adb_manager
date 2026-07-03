@@ -14,6 +14,7 @@ from .health_check import HealthCheckModule
 from .session_audit import SessionAuditModule
 from .smart_sync import SmartSyncModule
 from .snapshot_compare import SnapshotCompareModule
+from .settings_bundle import BUNDLE_SCHEMA_VERSION, export_settings_bundle, import_settings_bundle
 from .support_bundle import SupportBundleModule
 from .system_info import SystemInfoModule
 from .workflow_center import WorkflowCenterModule
@@ -35,6 +36,9 @@ __all__ = [
     "SessionAuditModule",
     "SmartSyncModule",
     "SnapshotCompareModule",
+    "BUNDLE_SCHEMA_VERSION",
+    "export_settings_bundle",
+    "import_settings_bundle",
     "SupportBundleModule",
     "SystemInfoModule",
     "WorkflowCenterModule",
