@@ -3,10 +3,49 @@ from __future__ import annotations
 import re
 
 
+DEFAULT_ACCENT = "#f59e0b"
+DEFAULT_ACCENT_HOVER = "#d97706"
+DEFAULT_ACCENT_PRESSED = "#b45309"
+DEFAULT_ACCENT_SOFT = "#fcd34d"
+DEFAULT_ACCENT_TEXT = "#fde68a"
+
+SUCCESS = "#16a34a"
+SUCCESS_HOVER = "#15803d"
+SUCCESS_BORDER = "#22c55e"
+
+DANGER = "#b42318"
+DANGER_HOVER = "#991b1b"
+DANGER_BORDER = "#ef4444"
+
+BG_DARK = "#050b14"
+BG_DARK_ALT = "#09111e"
+BG_DARK_PANEL = "#0f1724"
+BG_DARK_PANEL_ALT = "#121c2c"
+BG_DARK_INPUT = "#101a28"
+BG_DARK_INPUT_ALT = "#0d1623"
+BG_DARK_BORDER = "#223247"
+BG_DARK_BORDER_SOFT = "#31465f"
+TEXT_DARK = "#e5ecf5"
+TEXT_DARK_MUTED = "#8fa4be"
+TEXT_DARK_TITLE = "#f6f9ff"
+
+BG_LIGHT = "#eef4fb"
+BG_LIGHT_ALT = "#f7fbff"
+BG_LIGHT_PANEL = "#ffffff"
+BG_LIGHT_PANEL_ALT = "#f9fcff"
+BG_LIGHT_INPUT = "#ffffff"
+BG_LIGHT_INPUT_ALT = "#f7fbff"
+BG_LIGHT_BORDER = "#d4dfeb"
+BG_LIGHT_BORDER_SOFT = "#c8d7e6"
+TEXT_LIGHT = "#0f1b2d"
+TEXT_LIGHT_MUTED = "#60758f"
+TEXT_LIGHT_TITLE = "#07101c"
+
+
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
     value = color.strip().lstrip("#")
     if len(value) != 6:
-        return (37, 99, 235)
+        return (245, 158, 11)
     return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
 
 
@@ -34,81 +73,81 @@ def _valid_hex(color: str) -> bool:
 
 DARK_THEME = """
 QWidget {
-    color: #d8e2f0;
-    background-color: #08111f;
+    color: __TEXT__;
+    background-color: __BG__;
     font-family: "Manrope", "Noto Sans", "Segoe UI", sans-serif;
     font-size: 14px;
 }
 QMainWindow, QWidget#mainRoot {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 #071020,
-        stop:0.5 #0b1528,
-        stop:1 #060d18);
+        stop:0 __BG__,
+        stop:0.5 __BG_ALT__,
+        stop:1 #02060c);
 }
 QWidget#headerBar {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #0b172d,
-        stop:1 #0d1d36);
-    border: 1px solid #233452;
+        stop:0 __PANEL__,
+        stop:1 __PANEL_ALT__);
+    border: 1px solid __BORDER__;
     border-radius: 12px;
 }
 QLabel#appTitle {
-    color: #eef5ff;
+    color: __TITLE__;
     font-size: 20px;
     font-weight: 800;
     letter-spacing: 0.2px;
 }
 QLabel#appSubtitle {
-    color: #8ea4c2;
+    color: __MUTED__;
     font-size: 13px;
 }
 QLabel#deviceBadge, QLabel#clockLabel {
-    background-color: #0b1426;
-    border: 1px solid #2c3f60;
+    background-color: __INPUT__;
+    border: 1px solid __BORDER_SOFT__;
     border-radius: 8px;
     padding: 6px 10px;
     font-weight: 700;
 }
 QLabel#clockLabel {
-    color: #93c5fd;
+    color: __ACCENT_SOFT__;
 }
 QWidget#sidebarContainer {
-    background-color: rgba(12, 22, 38, 0.92);
-    border: 1px solid #21324d;
+    background-color: rgba(11, 18, 30, 0.92);
+    border: 1px solid __BORDER__;
     border-radius: 12px;
 }
 QLabel#sidebarTitle {
-    color: #e5eefc;
+    color: __TITLE__;
     font-size: 14px;
     font-weight: 700;
 }
 QLabel#shortcutHint {
-    color: #90a5c1;
+    color: __MUTED__;
     font-size: 12px;
 }
 QListWidget#navSidebar {
-    background-color: #0a1426;
-    border: 1px solid #223450;
+    background-color: __PANEL__;
+    border: 1px solid __BORDER__;
     border-radius: 10px;
     padding: 6px;
 }
 QListWidget#navSidebar::item {
-    color: #9fb2cc;
+    color: __MUTED__;
     padding: 10px 11px;
     border-radius: 8px;
     margin: 2px 0;
 }
 QListWidget#navSidebar::item:selected {
-    background-color: #16253d;
-    color: #f3f8ff;
-    border: 1px solid #2f4d76;
+    background-color: rgba(245, 158, 11, 0.14);
+    color: __TITLE__;
+    border: 1px solid __ACCENT__;
 }
 QListWidget#navSidebar::item:hover {
-    background-color: #111f35;
+    background-color: rgba(245, 158, 11, 0.08);
 }
 QWidget#panelCard, QGroupBox, QGroupBox#paneGroup {
-    background-color: rgba(14, 24, 41, 0.94);
-    border: 1px solid #223451;
+    background-color: rgba(15, 23, 36, 0.96);
+    border: 1px solid __BORDER__;
     border-radius: 12px;
     margin-top: 10px;
     padding-top: 8px;
@@ -118,57 +157,57 @@ QGroupBox::title {
     subcontrol-position: top left;
     left: 10px;
     padding: 0 6px;
-    color: #c2d3ea;
+    color: __TITLE__;
     background-color: transparent;
     font-weight: 700;
 }
 QLabel#fieldLabel {
-    color: #90a4c0;
+    color: __MUTED__;
     font-weight: 600;
 }
 QPushButton {
-    background-color: #2563eb;
-    color: #f4f8ff;
-    border: 1px solid #3b82f6;
+    background-color: __ACCENT__;
+    color: #fffdf7;
+    border: 1px solid __ACCENT__;
     border-radius: 8px;
     padding: 9px 14px;
     font-weight: 700;
 }
-QPushButton:hover { background-color: #1d4ed8; }
-QPushButton:pressed { background-color: #1e40af; }
+QPushButton:hover { background-color: __ACCENT_HOVER__; }
+QPushButton:pressed { background-color: __ACCENT_PRESSED__; }
 QPushButton#successBtn {
-    background-color: #0f8a5d;
-    border: 1px solid #22c55e;
+    background-color: __SUCCESS__;
+    border: 1px solid __SUCCESS_BORDER__;
 }
-QPushButton#successBtn:hover { background-color: #0d7c53; }
+QPushButton#successBtn:hover { background-color: __SUCCESS_HOVER__; }
 QPushButton#dangerBtn {
-    background-color: #8f1f2f;
-    border: 1px solid #ef4444;
+    background-color: __DANGER__;
+    border: 1px solid __DANGER_BORDER__;
 }
-QPushButton#dangerBtn:hover { background-color: #9f2234; }
+QPushButton#dangerBtn:hover { background-color: __DANGER_HOVER__; }
 QPushButton#ghostBtn {
-    background-color: #111c31;
-    border: 1px solid #2c4263;
-    color: #dce8fa;
+    background-color: __PANEL_ALT__;
+    border: 1px solid __BORDER_SOFT__;
+    color: __TEXT__;
 }
-QPushButton#ghostBtn:hover { background-color: #152540; }
+QPushButton#ghostBtn:hover { background-color: rgba(245, 158, 11, 0.12); }
 QLineEdit, QTextEdit, QPlainTextEdit, QListWidget, QTreeWidget, QTableWidget, QComboBox {
-    background-color: #091425;
-    border: 1px solid #2a3f60;
+    background-color: __INPUT__;
+    border: 1px solid __BORDER_SOFT__;
     border-radius: 8px;
     padding: 8px;
-    selection-background-color: #2563eb;
+    selection-background-color: __ACCENT__;
 }
 QLineEdit#pathInput {
-    background-color: #0b1629;
-    border-color: #314a70;
+    background-color: __INPUT_ALT__;
+    border-color: __BORDER__;
     font-weight: 600;
 }
 QLineEdit#searchInput {
-    background-color: #09182d;
+    background-color: __INPUT_ALT__;
 }
 QListWidget#fileList, QListWidget#commandCatalog, QListWidget#batchQueue {
-    border-color: #355079;
+    border-color: __BORDER_SOFT__;
 }
 QListWidget#appsGrid::item {
     padding: 8px;
@@ -176,81 +215,84 @@ QListWidget#appsGrid::item {
     border-radius: 10px;
 }
 QListWidget#appsGrid::item:selected {
-    background-color: #13243d;
-    border: 1px solid #355079;
+    background-color: rgba(245, 158, 11, 0.14);
+    border: 1px solid __ACCENT_SOFT__;
 }
 QTextEdit#commandDetails, QTextEdit#batchOutput {
-    background-color: #0a1528;
-    border-color: #335072;
+    background-color: __INPUT_ALT__;
+    border-color: __BORDER__;
 }
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QListWidget:focus, QTreeWidget:focus, QTableWidget:focus, QComboBox:focus {
-    border: 1px solid #60a5fa;
+    border: 1px solid __ACCENT_SOFT__;
 }
 QTableWidget {
-    gridline-color: #1f3250;
+    gridline-color: __BORDER__;
 }
 QHeaderView::section {
-    background-color: #12233e;
-    color: #e4eeff;
+    background-color: __PANEL_ALT__;
+    color: __TITLE__;
     border: 0;
     padding: 8px;
     font-weight: 700;
 }
 QTabWidget::pane {
-    border: 1px solid #223753;
+    border: 1px solid __BORDER__;
     border-radius: 12px;
-    background-color: rgba(10, 19, 33, 0.75);
+    background-color: rgba(9, 15, 24, 0.72);
     padding: 8px;
 }
 QProgressBar {
-    border: 1px solid #2f486c;
+    border: 1px solid __BORDER_SOFT__;
     border-radius: 7px;
     text-align: center;
-    background-color: #0a1528;
-    color: #e6f0ff;
+    background-color: __INPUT_ALT__;
+    color: __TEXT__;
     font-weight: 700;
 }
 QProgressBar::chunk {
-    background-color: #2563eb;
+    background-color: __ACCENT__;
     border-radius: 6px;
 }
 QSplitter::handle {
-    background-color: #1f304d;
+    background-color: __BORDER__;
     width: 1px;
     height: 1px;
 }
 QStatusBar {
-    background: #081321;
-    border-top: 1px solid #1f3250;
+    background: __BG_ALT__;
+    border-top: 1px solid __BORDER__;
 }
 QScrollBar:vertical {
-    background: #0a1527;
+    background: __BG_ALT__;
     width: 12px;
     margin: 2px;
 }
 QScrollBar::handle:vertical {
-    background: #31496b;
+    background: __BORDER_SOFT__;
     border-radius: 6px;
     min-height: 25px;
 }
 QScrollBar::handle:vertical:hover {
-    background: #3f5d88;
+    background: __ACCENT_HOVER__;
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
 }
 QLabel#metricValue {
-    color: #9ec5ff;
+    color: __ACCENT_SOFT__;
     font-size: 18px;
     font-weight: 800;
 }
 QLabel#metricLabel {
-    color: #8ca4c0;
+    color: __MUTED__;
     font-size: 13px;
 }
 QCheckBox {
     spacing: 8px;
     font-weight: 600;
+}
+QCheckBox:hover {
+    color: __TITLE__;
 }
 QCheckBox::indicator {
     width: 17px;
@@ -261,81 +303,81 @@ QCheckBox::indicator {
 
 LIGHT_THEME = """
 QWidget {
-    color: #0f1b2d;
-    background-color: #edf2f9;
+    color: __TEXT__;
+    background-color: __BG__;
     font-family: "Manrope", "Noto Sans", "Segoe UI", sans-serif;
     font-size: 14px;
 }
 QMainWindow, QWidget#mainRoot {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 #eaf0f8,
-        stop:0.5 #f5f8fc,
-        stop:1 #edf3fa);
+        stop:0 __BG__,
+        stop:0.5 __BG_ALT__,
+        stop:1 #e7eef6);
 }
 QWidget#headerBar {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #ffffff,
-        stop:1 #f7fbff);
-    border: 1px solid #d1ddec;
+        stop:0 __PANEL__,
+        stop:1 __PANEL_ALT__);
+    border: 1px solid __BORDER__;
     border-radius: 12px;
 }
 QLabel#appTitle {
-    color: #0e1b2d;
+    color: __TITLE__;
     font-size: 20px;
     font-weight: 800;
     letter-spacing: 0.2px;
 }
 QLabel#appSubtitle {
-    color: #5e718d;
+    color: __MUTED__;
     font-size: 13px;
 }
 QLabel#deviceBadge, QLabel#clockLabel {
-    background-color: #f8fbff;
-    border: 1px solid #d1ddeb;
+    background-color: __PANEL__;
+    border: 1px solid __BORDER_SOFT__;
     border-radius: 8px;
     padding: 6px 10px;
     font-weight: 700;
 }
 QLabel#clockLabel {
-    color: #2563eb;
+    color: __ACCENT__;
 }
 QWidget#sidebarContainer {
     background-color: rgba(255, 255, 255, 0.96);
-    border: 1px solid #d3deec;
+    border: 1px solid __BORDER__;
     border-radius: 12px;
 }
 QLabel#sidebarTitle {
-    color: #0e1b2d;
+    color: __TITLE__;
     font-size: 14px;
     font-weight: 700;
 }
 QLabel#shortcutHint {
-    color: #62748f;
+    color: __MUTED__;
     font-size: 12px;
 }
 QListWidget#navSidebar {
-    background-color: #ffffff;
-    border: 1px solid #d6e1ef;
+    background-color: __PANEL__;
+    border: 1px solid __BORDER__;
     border-radius: 10px;
     padding: 6px;
 }
 QListWidget#navSidebar::item {
-    color: #42556f;
+    color: __MUTED__;
     padding: 10px 11px;
     border-radius: 8px;
     margin: 2px 0;
 }
 QListWidget#navSidebar::item:selected {
-    background-color: #e8f1ff;
-    color: #0f1b2d;
-    border: 1px solid #b8cfed;
+    background-color: rgba(245, 158, 11, 0.12);
+    color: __TITLE__;
+    border: 1px solid __ACCENT_SOFT__;
 }
 QListWidget#navSidebar::item:hover {
-    background-color: #f2f7ff;
+    background-color: rgba(245, 158, 11, 0.06);
 }
 QWidget#panelCard, QGroupBox, QGroupBox#paneGroup {
-    background-color: #ffffff;
-    border: 1px solid #d7e3f0;
+    background-color: __PANEL__;
+    border: 1px solid __BORDER__;
     border-radius: 12px;
     margin-top: 10px;
     padding-top: 8px;
@@ -345,57 +387,57 @@ QGroupBox::title {
     subcontrol-position: top left;
     left: 10px;
     padding: 0 6px;
-    color: #30445f;
+    color: __TITLE__;
     background-color: transparent;
     font-weight: 700;
 }
 QLabel#fieldLabel {
-    color: #5d718e;
+    color: __MUTED__;
     font-weight: 600;
 }
 QPushButton {
-    background-color: #2563eb;
-    color: #ffffff;
-    border: 1px solid #2563eb;
+    background-color: __ACCENT__;
+    color: #fffdf7;
+    border: 1px solid __ACCENT__;
     border-radius: 8px;
     padding: 9px 14px;
     font-weight: 700;
 }
-QPushButton:hover { background-color: #1d4ed8; }
-QPushButton:pressed { background-color: #1e40af; }
+QPushButton:hover { background-color: __ACCENT_HOVER__; }
+QPushButton:pressed { background-color: __ACCENT_PRESSED__; }
 QPushButton#successBtn {
-    background-color: #0f8a5d;
-    border: 1px solid #0f8a5d;
+    background-color: __SUCCESS__;
+    border: 1px solid __SUCCESS_BORDER__;
 }
-QPushButton#successBtn:hover { background-color: #0d7c53; }
+QPushButton#successBtn:hover { background-color: __SUCCESS_HOVER__; }
 QPushButton#dangerBtn {
-    background-color: #dc2626;
-    border: 1px solid #dc2626;
+    background-color: __DANGER__;
+    border: 1px solid __DANGER_BORDER__;
 }
-QPushButton#dangerBtn:hover { background-color: #c41f1f; }
+QPushButton#dangerBtn:hover { background-color: __DANGER_HOVER__; }
 QPushButton#ghostBtn {
-    background-color: #ffffff;
-    color: #20334b;
-    border: 1px solid #c6d5e8;
+    background-color: __PANEL_ALT__;
+    color: __TEXT__;
+    border: 1px solid __BORDER_SOFT__;
 }
-QPushButton#ghostBtn:hover { background-color: #f2f7ff; }
+QPushButton#ghostBtn:hover { background-color: rgba(245, 158, 11, 0.10); }
 QLineEdit, QTextEdit, QPlainTextEdit, QListWidget, QTreeWidget, QTableWidget, QComboBox {
-    background-color: #ffffff;
-    border: 1px solid #c9d8eb;
+    background-color: __INPUT__;
+    border: 1px solid __BORDER_SOFT__;
     border-radius: 8px;
     padding: 8px;
-    selection-background-color: #bfdbfe;
+    selection-background-color: __ACCENT__;
 }
 QLineEdit#pathInput {
-    background-color: #f7fbff;
-    border-color: #bcd0e8;
+    background-color: __INPUT_ALT__;
+    border-color: __BORDER__;
     font-weight: 600;
 }
 QLineEdit#searchInput {
-    background-color: #f9fbff;
+    background-color: __INPUT_ALT__;
 }
 QListWidget#fileList, QListWidget#commandCatalog, QListWidget#batchQueue {
-    border-color: #b8cae2;
+    border-color: __BORDER_SOFT__;
 }
 QListWidget#appsGrid::item {
     padding: 8px;
@@ -403,81 +445,84 @@ QListWidget#appsGrid::item {
     border-radius: 10px;
 }
 QListWidget#appsGrid::item:selected {
-    background-color: #e8f1ff;
-    border: 1px solid #b8cae2;
+    background-color: rgba(245, 158, 11, 0.12);
+    border: 1px solid __ACCENT_SOFT__;
 }
 QTextEdit#commandDetails, QTextEdit#batchOutput {
-    background-color: #fbfdff;
-    border-color: #c6d7eb;
+    background-color: __INPUT_ALT__;
+    border-color: __BORDER__;
 }
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QListWidget:focus, QTreeWidget:focus, QTableWidget:focus, QComboBox:focus {
-    border: 1px solid #60a5fa;
+    border: 1px solid __ACCENT_SOFT__;
 }
 QTableWidget {
-    gridline-color: #dce6f3;
+    gridline-color: __BORDER__;
 }
 QHeaderView::section {
-    background-color: #e9f0f9;
-    color: #102037;
+    background-color: __PANEL_ALT__;
+    color: __TITLE__;
     border: 0;
     padding: 8px;
     font-weight: 700;
 }
 QTabWidget::pane {
-    border: 1px solid #d5e1ef;
+    border: 1px solid __BORDER__;
     border-radius: 12px;
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: rgba(255, 255, 255, 0.82);
     padding: 8px;
 }
 QProgressBar {
-    border: 1px solid #c5d5e8;
+    border: 1px solid __BORDER_SOFT__;
     border-radius: 7px;
     text-align: center;
-    background-color: #f4f8fe;
-    color: #142339;
+    background-color: __INPUT_ALT__;
+    color: __TEXT__;
     font-weight: 700;
 }
 QProgressBar::chunk {
-    background-color: #2563eb;
+    background-color: __ACCENT__;
     border-radius: 6px;
 }
 QSplitter::handle {
-    background-color: #d4e0ef;
+    background-color: __BORDER__;
     width: 1px;
     height: 1px;
 }
 QStatusBar {
-    background: #e9f0f8;
-    border-top: 1px solid #d0dceb;
+    background: __BG_ALT__;
+    border-top: 1px solid __BORDER__;
 }
 QScrollBar:vertical {
-    background: #f5f8fc;
+    background: __BG_ALT__;
     width: 12px;
     margin: 2px;
 }
 QScrollBar::handle:vertical {
-    background: #c1d1e5;
+    background: __BORDER_SOFT__;
     border-radius: 6px;
     min-height: 25px;
 }
 QScrollBar::handle:vertical:hover {
-    background: #9fb5d1;
+    background: __ACCENT_HOVER__;
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
 }
 QLabel#metricValue {
-    color: #1d4ed8;
+    color: __ACCENT__;
     font-size: 18px;
     font-weight: 800;
 }
 QLabel#metricLabel {
-    color: #526781;
+    color: __MUTED__;
     font-size: 13px;
 }
 QCheckBox {
     spacing: 8px;
     font-weight: 600;
+}
+QCheckBox:hover {
+    color: __TITLE__;
 }
 QCheckBox::indicator {
     width: 17px;
@@ -486,25 +531,38 @@ QCheckBox::indicator {
 """
 
 
-def _with_accent(theme: str, accent: str) -> str:
+def _fill_template(template: str, accent: str, *, dark: bool) -> str:
     if not _valid_hex(accent):
-        accent = "#2563eb"
+        accent = DEFAULT_ACCENT
     accent_hover = _mix(accent, "#000000", 0.12)
     accent_pressed = _mix(accent, "#000000", 0.24)
-    accent_soft = _mix(accent, "#ffffff", 0.72)
-    accent_text_dark = _mix(accent, "#ffffff", 0.55)
-
-    out = theme
-    replacements = {
-        "#2563eb": accent,
-        "#1d4ed8": accent_hover,
-        "#1e40af": accent_pressed,
-        "#60a5fa": accent_soft,
-        "#93c5fd": accent_text_dark,
-        "#bfdbfe": accent_soft,
+    accent_soft = _mix(accent, "#ffffff", 0.68)
+    palette = {
+        "__ACCENT__": accent,
+        "__ACCENT_HOVER__": accent_hover,
+        "__ACCENT_PRESSED__": accent_pressed,
+        "__ACCENT_SOFT__": accent_soft,
+        "__SUCCESS__": SUCCESS,
+        "__SUCCESS_HOVER__": SUCCESS_HOVER,
+        "__SUCCESS_BORDER__": SUCCESS_BORDER,
+        "__DANGER__": DANGER,
+        "__DANGER_HOVER__": DANGER_HOVER,
+        "__DANGER_BORDER__": DANGER_BORDER,
+        "__BG__": BG_DARK if dark else BG_LIGHT,
+        "__BG_ALT__": BG_DARK_ALT if dark else BG_LIGHT_ALT,
+        "__PANEL__": BG_DARK_PANEL if dark else BG_LIGHT_PANEL,
+        "__PANEL_ALT__": BG_DARK_PANEL_ALT if dark else BG_LIGHT_PANEL_ALT,
+        "__INPUT__": BG_DARK_INPUT if dark else BG_LIGHT_INPUT,
+        "__INPUT_ALT__": BG_DARK_INPUT_ALT if dark else BG_LIGHT_INPUT_ALT,
+        "__BORDER__": BG_DARK_BORDER if dark else BG_LIGHT_BORDER,
+        "__BORDER_SOFT__": BG_DARK_BORDER_SOFT if dark else BG_LIGHT_BORDER_SOFT,
+        "__TEXT__": TEXT_DARK if dark else TEXT_LIGHT,
+        "__MUTED__": TEXT_DARK_MUTED if dark else TEXT_LIGHT_MUTED,
+        "__TITLE__": TEXT_DARK_TITLE if dark else TEXT_LIGHT_TITLE,
     }
-    for old, new in replacements.items():
-        out = out.replace(old, new)
+    out = template
+    for key, value in palette.items():
+        out = out.replace(key, value)
     return out
 
 
@@ -525,9 +583,10 @@ QCheckBox::indicator { width: 14px; height: 14px; }
 """
 
 
-def get_theme(name: str, accent: str = "#2563eb", density: str = "comfortable") -> str:
-    base = LIGHT_THEME if name.lower() == "light" else DARK_THEME
-    themed = _with_accent(base, accent=accent)
+def get_theme(name: str, accent: str = DEFAULT_ACCENT, density: str = "comfortable") -> str:
+    dark = name.lower() != "light"
+    base = DARK_THEME if dark else LIGHT_THEME
+    themed = _fill_template(base, accent, dark=dark)
     if density.lower() == "compact":
         themed += "\n" + COMPACT_OVERRIDES
     return themed

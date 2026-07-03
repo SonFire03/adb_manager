@@ -6,6 +6,7 @@ from pathlib import Path
 
 from core.adb_manager import ADBManager
 from core.utils import ConfigManager, HistoryDB, setup_logging
+from gui.styles import get_theme
 
 
 class ConfigManagerTests(unittest.TestCase):
@@ -95,6 +96,16 @@ class SafeModeTests(unittest.TestCase):
             res = adb.run("shell rm -rf /")
             self.assertFalse(res.ok)
             self.assertEqual(res.returncode, 126)
+
+
+class ThemeTests(unittest.TestCase):
+    def test_theme_uses_new_accent_and_modes(self) -> None:
+        dark = get_theme("dark")
+        light = get_theme("light")
+        self.assertIn("#f59e0b", dark)
+        self.assertIn("#f59e0b", light)
+        self.assertIn("background-color", dark)
+        self.assertIn("background-color", light)
 
 
 if __name__ == "__main__":

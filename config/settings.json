@@ -3,7 +3,7 @@
     "name": "ADB Manager Pro",
     "language": "fr",
     "theme": "dark",
-    "accent": "#99c1f1",
+    "accent": "#f59e0b",
     "refresh_interval_ms": 2500,
     "safe_mode": true,
     "scrcpy_bin": "scrcpy",
