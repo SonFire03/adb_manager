@@ -27,6 +27,7 @@ class DeviceHealthModule:
         score = self._score(findings)
         status = self._status_from_score(score)
         sections = self._section_summary(findings)
+        priority_actions = self._priority_actions(findings)
 
         return {
             "generated_at": datetime.now(timezone.utc)
@@ -37,6 +38,7 @@ class DeviceHealthModule:
             "status": status,
             "sections": sections,
             "findings": findings,
+            "priority_actions": priority_actions,
             "summary": f"{status} ({score}/100) - {len(findings)} findings",
         }
 
@@ -561,6 +563,59 @@ class DeviceHealthModule:
         if raw_value is not None:
             item["raw_value"] = raw_value
         return item
+
+    def _priority_actions(self, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        ordered = sorted(
+            (
+                f
+                for f in findings
+                if str(f.get("status", "")).lower() in {"fail", "warn"}
+            ),
+            key=lambda f: (
+                0
+                if str(f.get("status", "")).lower() == "fail"
+                else 1,
+                {"high": 0, "medium": 1, "low": 2, "info": 3}.get(
+                    str(f.get("severity", "")).lower(), 4
+                ),
+                str(f.get("category", "")),
+                str(f.get("title", "")),
+            ),
+        )
+        actions: list[dict[str, Any]] = []
+        for finding in ordered[:5]:
+            actions.append(
+                {
+                    "category": finding.get("category", ""),
+                    "title": finding.get("title", ""),
+                    "status": finding.get("status", ""),
+                    "severity": finding.get("severity", ""),
+                    "evidence": finding.get("evidence", ""),
+                    "remediation": finding.get("remediation", ""),
+                    "rationale": self._rationale_for_finding(finding),
+                }
+            )
+        return actions
+
+    def _rationale_for_finding(self, finding: dict[str, Any]) -> str:
+        category = str(finding.get("category", "")).lower()
+        title = str(finding.get("title", "")).lower()
+        status = str(finding.get("status", "")).lower()
+        if category == "battery":
+            return "Battery issues reduce the reliability of long-running ADB operations."
+        if category == "storage":
+            return "Low storage can block app installs, pulls, captures, and logging."
+        if category == "cpu_memory":
+            return "High load or low memory often causes lag, missed events, and flaky automation."
+        if category == "thermal":
+            return "Thermal pressure can throttle performance and destabilize transfers or tests."
+        if category == "connectivity":
+            return "Connectivity issues increase command latency and make Wi-Fi ADB less stable."
+        if category == "adb_stability":
+            return "ADB authorization and latency directly affect every workflow in the app."
+        if category == "app_stability":
+            return "Crash or ANR signals point to app-level instability worth triaging first."
+        return f"{title or 'This item'} is flagged as {status} and should be reviewed."
 
     def _int_match(self, pattern: str, text: str) -> int:
         m = re.search(pattern, text)

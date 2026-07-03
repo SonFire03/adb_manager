@@ -2612,10 +2612,34 @@ class MainWindow(QMainWindow):
         wf = self._selected_workflow()
         if not wf:
             return
-        lines = [str(wf.get("description", "")), "", "Etapes:"]
+        lines = [str(wf.get("description", ""))]
+        dry_run = "oui" if bool(wf.get("supports_dry_run", True)) else "non"
+        lines.append(f"Dry-run compatible: {dry_run}")
+        variables = wf.get("variables", [])
+        if isinstance(variables, list) and variables:
+            lines.append("")
+            lines.append("Variables:")
+            for var in variables:
+                item = var if isinstance(var, dict) else {}
+                default = str(item.get("default", "")).strip()
+                required = "yes" if bool(item.get("required")) else "no"
+                label = str(item.get("label", item.get("key", "")))
+                lines.append(
+                    f"- {label} [{item.get('key', '')}] default={default or 'n/a'} required={required}"
+                )
+                desc = str(item.get("description", "")).strip()
+                if desc:
+                    lines.append(f"  {desc}")
+        lines.append("")
+        lines.append("Etapes:")
         for s in wf.get("steps", []):
             step = s if isinstance(s, dict) else {}
-            lines.append(f"- {step.get('title', '')} ({step.get('action', '')})")
+            title = step.get("title", "")
+            action = step.get("action", "")
+            notes = str(step.get("notes", "")).strip()
+            lines.append(f"- {title} ({action})")
+            if notes:
+                lines.append(f"  {notes}")
         self.workflow_desc.setPlainText("\n".join(lines))
 
     def _run_selected_workflow(self) -> None:
@@ -3190,6 +3214,21 @@ class MainWindow(QMainWindow):
 
         sections = report.get("sections", {})
         section_lines = [f"Global: {status} ({score}/100)", ""]
+        priority_actions = report.get("priority_actions", [])
+        if isinstance(priority_actions, list) and priority_actions:
+            section_lines.append("Actions prioritaires:")
+            for action in priority_actions[:5]:
+                item = action if isinstance(action, dict) else {}
+                section_lines.append(
+                    f"- [{item.get('status', '')}/{item.get('severity', '')}] {item.get('title', '')}"
+                )
+                rationale = str(item.get("rationale", "")).strip()
+                remediation = str(item.get("remediation", "")).strip()
+                if rationale:
+                    section_lines.append(f"  why: {rationale}")
+                if remediation:
+                    section_lines.append(f"  fix: {remediation}")
+            section_lines.append("")
         if isinstance(sections, dict):
             for name, summary in sections.items():
                 if isinstance(summary, dict):
@@ -5031,6 +5070,18 @@ class MainWindow(QMainWindow):
         status = str(report.get("status", "n/a"))
         self.health_status_badge.setText(f"Global: {status}")
         parts = [str(report.get("summary", "")), ""]
+        recommendations = report.get("recommendations", [])
+        if isinstance(recommendations, list) and recommendations:
+            parts.append("Recommandations:")
+            for rec in recommendations[:6]:
+                item = rec if isinstance(rec, dict) else {}
+                parts.append(
+                    f"- [{item.get('status', '')}] {item.get('name', '')}: {item.get('message', '')}"
+                )
+                remediation = str(item.get("remediation", "")).strip()
+                if remediation:
+                    parts.append(f"  -> Remediation: {remediation}")
+            parts.append("")
         for check in report.get("checks", []):
             if not isinstance(check, dict):
                 continue

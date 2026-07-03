@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +9,7 @@ from unittest.mock import patch
 from core.utils import DeviceInfo
 from modules.data_transfer import DataTransferModule
 from modules.device_health import DeviceHealthModule
+from modules.health_check import HealthCheckModule
 
 
 class _R:
@@ -21,14 +23,19 @@ class _R:
 
 
 class _StubADB:
+    adb_bin = "adb"
+
     def run(self, args, serial=None, timeout=None):  # noqa: ANN001
         cmd = " ".join(args)
+        demo_hash = hashlib.sha256(b"demo").hexdigest()
         if "du -sk" in cmd and "/bad" in cmd:
             return _R(False, "", "du failed", 1)
         if "push" in cmd and "/sdcard/fail" in cmd:
             return _R(False, "", "push failed", 1)
         if "ls -ld" in cmd and "/sdcard/missing" in cmd:
             return _R(False, "", "not found", 1)
+        if "sha256sum" in cmd and "/sdcard/Download/file.txt" in cmd:
+            return _R(True, f"{demo_hash}  /sdcard/Download/file.txt\n")
         if "du -sk" in cmd:
             return _R(True, "1024 /sdcard/DCIM\n")
         if "find" in cmd and "wc -l" in cmd:
@@ -99,6 +106,8 @@ class DataTransferTests(unittest.TestCase):
             res = self.mod.execute_task(task)
             self.assertTrue(res["ok"])
             self.assertEqual(res["status"], "success")
+            self.assertTrue(res["integrity"]["checked"])
+            self.assertTrue(res["integrity"]["ok"])
 
     def test_estimate_host_source_missing(self) -> None:
         task = self.mod.make_task(
@@ -258,8 +267,31 @@ class DeviceHealthTests(unittest.TestCase):
         self.assertIn("score", report)
         self.assertIn("status", report)
         self.assertIn("findings", report)
+        self.assertIn("priority_actions", report)
         self.assertIsInstance(report["findings"], list)
         self.assertGreater(len(report["findings"]), 0)
+
+
+class HealthCheckTests(unittest.TestCase):
+    def test_health_check_recommendations_are_reported(self) -> None:
+        mod = HealthCheckModule(_StubADB())  # type: ignore[arg-type]
+        report = mod.run(
+            [
+                DeviceInfo(
+                    serial="ABC",
+                    state="unauthorized",
+                    model="Pixel",
+                    transport="usb",
+                    android_version="14",
+                    root=False,
+                )
+            ],
+            serial="ABC",
+        )
+        self.assertIn("recommendations", report)
+        self.assertGreaterEqual(len(report["recommendations"]), 1)
+        names = {item["name"] for item in report["recommendations"]}
+        self.assertTrue({"device_auth", "adb_version", "adb_server"} & names)
 
 
 if __name__ == "__main__":

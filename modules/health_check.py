@@ -140,10 +140,12 @@ class HealthCheckModule:
 
         status = self._global_status(checks)
         summary = self._build_summary(status, checks)
+        recommendations = self._recommendations(checks)
         return {
             "status": status,
             "summary": summary,
             "checks": checks,
+            "recommendations": recommendations,
             "ran_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "target_serial": target or "",
         }
@@ -244,3 +246,36 @@ class HealthCheckModule:
         warn = sum(1 for c in checks if c.get("status") == "WARNING")
         err = sum(1 for c in checks if c.get("status") == "ERROR")
         return f"Global={status} | checks={total} | OK={ok} WARNING={warn} ERROR={err}"
+
+    def _recommendations(self, checks: list[dict[str, str]]) -> list[dict[str, str]]:
+        recs: list[dict[str, str]] = []
+        for check in checks:
+            if str(check.get("status", "")).upper() == "OK":
+                continue
+            recs.append(
+                {
+                    "name": str(check.get("name", "")),
+                    "status": str(check.get("status", "")),
+                    "message": str(check.get("message", "")),
+                    "remediation": str(check.get("remediation", "")),
+                    "priority": self._priority_for_check(check),
+                }
+            )
+        recs.sort(
+            key=lambda item: (
+                0 if item["priority"] == "high" else 1 if item["priority"] == "medium" else 2,
+                item["name"],
+            )
+        )
+        return recs[:6]
+
+    def _priority_for_check(self, check: dict[str, str]) -> str:
+        name = str(check.get("name", ""))
+        status = str(check.get("status", "")).upper()
+        if status == "ERROR":
+            return "high"
+        if name in {"adb_binary", "adb_version", "adb_server", "device_auth"}:
+            return "high" if status in {"ERROR", "WARNING"} else "medium"
+        if status == "WARNING":
+            return "medium"
+        return "low"

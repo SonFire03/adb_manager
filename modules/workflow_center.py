@@ -1,7 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+
+@dataclass(slots=True)
+class WorkflowVariable:
+    key: str
+    label: str
+    description: str
+    default: str = ""
+    required: bool = False
 
 
 @dataclass(slots=True)
@@ -9,6 +18,9 @@ class WorkflowStep:
     key: str
     title: str
     action: str
+    kind: str = "action"
+    optional: bool = False
+    notes: str = ""
 
 
 @dataclass(slots=True)
@@ -17,7 +29,9 @@ class WorkflowDefinition:
     title: str
     description: str
     impact: str
-    steps: list[WorkflowStep]
+    supports_dry_run: bool = True
+    variables: list[WorkflowVariable] = field(default_factory=list)
+    steps: list[WorkflowStep] = field(default_factory=list)
 
 
 class WorkflowCenterModule:
@@ -28,8 +42,28 @@ class WorkflowCenterModule:
                 "Onboard New Device",
                 "Verifier connexion, inspector, health de base et snapshot initial.",
                 "low",
+                True,
                 [
-                    WorkflowStep("poll", "Refresh devices", "refresh_devices"),
+                    WorkflowVariable(
+                        "baseline_label",
+                        "Baseline label",
+                        "Libelle court pour identifier la capture initiale.",
+                        "baseline",
+                    ),
+                    WorkflowVariable(
+                        "include_snapshot",
+                        "Include snapshot",
+                        "Active la capture de reference initiale.",
+                        "true",
+                    ),
+                ],
+                [
+                    WorkflowStep(
+                        "poll",
+                        "Refresh devices",
+                        "refresh_devices",
+                        notes="Met a jour la liste des appareils avant le reste du flux.",
+                    ),
                     WorkflowStep(
                         "inspector", "Run Device Inspector", "device_inspector"
                     ),
@@ -44,6 +78,15 @@ class WorkflowCenterModule:
                 "Run Full Health Assessment",
                 "Executer health checks + timeline refresh + rapport.",
                 "low",
+                True,
+                [
+                    WorkflowVariable(
+                        "target_serial",
+                        "Target serial",
+                        "Laisser vide pour utiliser l'appareil selectionne.",
+                        "",
+                    )
+                ],
                 [
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
                     WorkflowStep(
@@ -59,6 +102,21 @@ class WorkflowCenterModule:
                 "Collect Debug Bundle",
                 "Collecter health, inspector, audit et captures dans un support bundle.",
                 "low",
+                True,
+                [
+                    WorkflowVariable(
+                        "bundle_name",
+                        "Bundle name",
+                        "Nom de l'archive de support generee.",
+                        "support_bundle",
+                    ),
+                    WorkflowVariable(
+                        "include_logs",
+                        "Include logs",
+                        "Inclut les logs recents si disponibles.",
+                        "false",
+                    ),
+                ],
                 [
                     WorkflowStep(
                         "inspector", "Run Device Inspector", "device_inspector"
@@ -72,6 +130,15 @@ class WorkflowCenterModule:
                 "Backup Photos & Screenshots",
                 "Transfert guide des dossiers DCIM et Screenshots vers l'hote.",
                 "low",
+                True,
+                [
+                    WorkflowVariable(
+                        "destination_root",
+                        "Destination root",
+                        "Racine locale des sauvegardes media.",
+                        "./transfers",
+                    )
+                ],
                 [
                     WorkflowStep(
                         "queue_dcim", "Queue DCIM transfer", "queue_transfer_dcim"
@@ -91,6 +158,15 @@ class WorkflowCenterModule:
                 "Prepare Troubleshooting Session",
                 "Preparer environnement debug avec checks connexion + logcat.",
                 "medium",
+                True,
+                [
+                    WorkflowVariable(
+                        "logcat_lines",
+                        "Logcat lines",
+                        "Nombre de lignes recuperees pour le diagnostic.",
+                        "250",
+                    )
+                ],
                 [
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
                     WorkflowStep("adb_health", "Run ADB Health Check", "adb_health"),
@@ -102,6 +178,8 @@ class WorkflowCenterModule:
                 "Quick Device Inventory",
                 "Inventaire rapide multi-device avec inspector et snapshot.",
                 "low",
+                True,
+                [],
                 [
                     WorkflowStep("poll", "Refresh devices", "refresh_devices"),
                     WorkflowStep(
@@ -115,6 +193,8 @@ class WorkflowCenterModule:
                 "Pre-Transfer Device Check",
                 "Verifier batterie, stockage et connectivite avant transfert.",
                 "low",
+                True,
+                [],
                 [
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
                     WorkflowStep(
@@ -127,6 +207,15 @@ class WorkflowCenterModule:
                 "Post-Transfer Validation",
                 "Valider transfert + health check final + rapport.",
                 "low",
+                True,
+                [
+                    WorkflowVariable(
+                        "report_name",
+                        "Report name",
+                        "Nom du rapport de validation a generer.",
+                        "post_transfer_validation",
+                    )
+                ],
                 [
                     WorkflowStep("health", "Run Device Health Checks", "device_health"),
                     WorkflowStep(
@@ -150,8 +239,26 @@ class WorkflowCenterModule:
                     "title": w.title,
                     "description": w.description,
                     "impact": w.impact,
+                    "supports_dry_run": w.supports_dry_run,
+                    "variables": [
+                        {
+                            "key": v.key,
+                            "label": v.label,
+                            "description": v.description,
+                            "default": v.default,
+                            "required": v.required,
+                        }
+                        for v in w.variables
+                    ],
                     "steps": [
-                        {"key": s.key, "title": s.title, "action": s.action}
+                        {
+                            "key": s.key,
+                            "title": s.title,
+                            "action": s.action,
+                            "kind": s.kind,
+                            "optional": s.optional,
+                            "notes": s.notes,
+                        }
                         for s in w.steps
                     ],
                 }

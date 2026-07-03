@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import uuid
@@ -29,6 +30,8 @@ class TransferTask:
     destination: str
     preset: str = ""
     dry_run: bool = False
+    verify_integrity: bool = True
+    checksum_algorithm: str = "sha256"
 
 
 class DataTransferModule:
@@ -44,6 +47,8 @@ class DataTransferModule:
         destination: str,
         preset: str = "",
         dry_run: bool = False,
+        verify_integrity: bool = True,
+        checksum_algorithm: str = "sha256",
     ) -> TransferTask:
         return TransferTask(
             task_id=f"tx_{uuid.uuid4().hex[:10]}",
@@ -54,6 +59,8 @@ class DataTransferModule:
             destination=destination,
             preset=preset,
             dry_run=dry_run,
+            verify_integrity=verify_integrity,
+            checksum_algorithm=checksum_algorithm,
         )
 
     def preset_sources(self, preset_name: str) -> list[str]:
@@ -125,8 +132,25 @@ class DataTransferModule:
                 "status": "dry_run",
                 "message": "Dry-run uniquement (aucun transfert effectif)",
                 "estimate": estimate,
-                "verification": {"ok": True, "detail": "not required in dry-run"},
+                "verification": {
+                    "ok": True,
+                    "detail": "not required in dry-run",
+                    "integrity": {
+                        "requested": task.verify_integrity,
+                        "checked": False,
+                        "ok": True,
+                        "detail": "skipped in dry-run",
+                    },
+                },
             }
+
+        integrity: dict[str, Any] = {
+            "requested": bool(task.verify_integrity),
+            "checked": False,
+            "ok": True,
+            "algorithm": task.checksum_algorithm,
+            "detail": "",
+        }
 
         if task.direction == "host_to_device":
             source_path = Path(task.source)
@@ -143,16 +167,34 @@ class DataTransferModule:
                 serial=task.serial,
                 timeout=900,
             )
-            verify = self._verify_remote_path(task.serial, task.destination)
+            target_path = self._resolve_device_target(task.destination, source_path)
+            verify = self._verify_remote_path(task.serial, target_path)
+            if task.verify_integrity:
+                integrity = self._verify_remote_integrity(
+                    serial=task.serial,
+                    local_source=source_path,
+                    remote_target=target_path,
+                    preferred_algorithm=task.checksum_algorithm,
+                )
         else:
             dest_path = Path(task.destination)
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             result = self.adb.run(
                 ["pull", task.source, str(dest_path)], serial=task.serial, timeout=900
             )
-            verify = self._verify_local_path(dest_path)
+            target_path = self._resolve_local_target(task.source, dest_path)
+            verify = self._verify_local_path(target_path)
+            if task.verify_integrity:
+                integrity = self._verify_local_integrity(
+                    serial=task.serial,
+                    remote_source=task.source,
+                    local_target=target_path,
+                    preferred_algorithm=task.checksum_algorithm,
+                )
 
         ok = bool(result.ok) and bool(verify.get("ok", False))
+        if task.verify_integrity and integrity["checked"] and not integrity["ok"]:
+            ok = False
         status = "success" if ok else ("partial" if result.ok else "error")
         message = result.stdout or result.stderr or "(aucune sortie)"
         return {
@@ -162,6 +204,7 @@ class DataTransferModule:
             "message": message,
             "estimate": estimate,
             "verification": verify,
+            "integrity": integrity,
             "returncode": result.returncode,
         }
 
@@ -177,6 +220,158 @@ class DataTransferModule:
         if parent.exists() and any(parent.iterdir()):
             return {"ok": True, "detail": f"parent populated ({parent})"}
         return {"ok": False, "detail": f"destination not found ({path})"}
+
+    def _verify_remote_integrity(
+        self,
+        *,
+        serial: str,
+        local_source: Path,
+        remote_target: str,
+        preferred_algorithm: str,
+    ) -> dict[str, Any]:
+        if not local_source.is_file():
+            return {
+                "requested": True,
+                "checked": False,
+                "ok": True,
+                "algorithm": preferred_algorithm,
+                "detail": "directory transfer not hashed",
+            }
+        local_hash = self._checksum_file(local_source, preferred_algorithm)
+        remote_hash = self._remote_checksum(serial, remote_target, preferred_algorithm)
+        if not local_hash["ok"] or not remote_hash["ok"]:
+            return {
+                "requested": True,
+                "checked": False,
+                "ok": True,
+                "algorithm": preferred_algorithm,
+                "detail": local_hash.get("detail") or remote_hash.get("detail"),
+            }
+        if str(local_hash.get("algorithm", "")).lower() != str(
+            remote_hash.get("algorithm", "")
+        ).lower():
+            local_hash = self._checksum_file(
+                local_source, str(remote_hash.get("algorithm", preferred_algorithm))
+            )
+        match = (
+            str(local_hash.get("value", "")) == str(remote_hash.get("value", ""))
+            and str(local_hash.get("algorithm", "")).lower()
+            == str(remote_hash.get("algorithm", "")).lower()
+        )
+        return {
+            "requested": True,
+            "checked": True,
+            "ok": match,
+            "algorithm": str(local_hash.get("algorithm", preferred_algorithm)),
+            "detail": (
+                f"{local_hash.get('value', '')[:12]}... vs {remote_hash.get('value', '')[:12]}..."
+                if match
+                else "checksum mismatch"
+            ),
+        }
+
+    def _verify_local_integrity(
+        self,
+        *,
+        serial: str,
+        remote_source: str,
+        local_target: Path,
+        preferred_algorithm: str,
+    ) -> dict[str, Any]:
+        if not local_target.is_file():
+            return {
+                "requested": True,
+                "checked": False,
+                "ok": True,
+                "algorithm": preferred_algorithm,
+                "detail": "directory transfer not hashed",
+            }
+        local_hash = self._checksum_file(local_target, preferred_algorithm)
+        remote_hash = self._remote_checksum(serial, remote_source, preferred_algorithm)
+        if not local_hash["ok"] or not remote_hash["ok"]:
+            return {
+                "requested": True,
+                "checked": False,
+                "ok": True,
+                "algorithm": preferred_algorithm,
+                "detail": local_hash.get("detail") or remote_hash.get("detail"),
+            }
+        if str(local_hash.get("algorithm", "")).lower() != str(
+            remote_hash.get("algorithm", "")
+        ).lower():
+            local_hash = self._checksum_file(
+                local_target, str(remote_hash.get("algorithm", preferred_algorithm))
+            )
+        match = (
+            str(local_hash.get("value", "")) == str(remote_hash.get("value", ""))
+            and str(local_hash.get("algorithm", "")).lower()
+            == str(remote_hash.get("algorithm", "")).lower()
+        )
+        return {
+            "requested": True,
+            "checked": True,
+            "ok": match,
+            "algorithm": str(local_hash.get("algorithm", preferred_algorithm)),
+            "detail": (
+                f"{local_hash.get('value', '')[:12]}... vs {remote_hash.get('value', '')[:12]}..."
+                if match
+                else "checksum mismatch"
+            ),
+        }
+
+    def _checksum_file(self, path: Path, preferred_algorithm: str) -> dict[str, Any]:
+        algorithm = preferred_algorithm.lower()
+        if algorithm not in {"sha256", "md5"}:
+            algorithm = "sha256"
+        try:
+            hasher = hashlib.new(algorithm)
+        except ValueError:
+            algorithm = "sha256"
+            hasher = hashlib.sha256()
+        try:
+            with path.open("rb") as fh:
+                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                    hasher.update(chunk)
+        except OSError as exc:
+            return {"ok": False, "detail": str(exc), "algorithm": algorithm}
+        return {"ok": True, "value": hasher.hexdigest(), "algorithm": algorithm}
+
+    def _remote_checksum(
+        self, serial: str, path: str, preferred_algorithm: str
+    ) -> dict[str, Any]:
+        commands = []
+        alg = preferred_algorithm.lower()
+        if alg == "md5":
+            commands = ["md5sum", "sha256sum"]
+        else:
+            commands = ["sha256sum", "md5sum"]
+        for cmd in commands:
+            res = self.adb.run(["shell", cmd, path], serial=serial, timeout=20)
+            if not res.ok or not res.stdout.strip():
+                continue
+            token = res.stdout.strip().split()[0]
+            if re.fullmatch(r"[0-9a-fA-F]+", token or ""):
+                return {"ok": True, "value": token.lower(), "algorithm": cmd.removesuffix("sum")}
+        return {
+            "ok": False,
+            "detail": f"checksum unavailable for {path}",
+            "algorithm": preferred_algorithm,
+        }
+
+    def _resolve_device_target(self, destination: str, source_path: Path) -> str:
+        dest = destination.rstrip("/")
+        if source_path.is_dir():
+            return f"{dest}/{source_path.name}"
+        if Path(dest).suffix:
+            return dest
+        return f"{dest}/{source_path.name}"
+
+    def _resolve_local_target(self, source: str, destination: Path) -> Path:
+        if destination.exists() and destination.is_dir():
+            return destination / Path(source).name
+        if destination.suffix:
+            return destination
+        return destination / Path(source).name
 
     def _local_size(self, source: Path) -> tuple[int, int]:
         if source.is_file():

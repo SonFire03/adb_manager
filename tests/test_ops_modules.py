@@ -299,6 +299,10 @@ class WorkflowCenterTests(unittest.TestCase):
         ids = {d["workflow_id"] for d in defs}
         self.assertIn("onboard_device", ids)
         self.assertIn("collect_debug_bundle", ids)
+        onboard = next(d for d in defs if d["workflow_id"] == "onboard_device")
+        self.assertTrue(onboard["supports_dry_run"])
+        self.assertGreaterEqual(len(onboard["variables"]), 1)
+        self.assertIn("notes", onboard["steps"][0])
 
 
 if __name__ == "__main__":
