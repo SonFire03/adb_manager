@@ -373,6 +373,12 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.profile_save_btn)
         toolbar.addWidget(self.profile_load_btn)
         toolbar.addWidget(self.profile_delete_btn)
+        self.profile_export_btn = QPushButton("Exporter profils")
+        self.profile_import_btn = QPushButton("Importer profils")
+        self.profile_export_btn.setObjectName("ghostBtn")
+        self.profile_import_btn.setObjectName("ghostBtn")
+        toolbar.addWidget(self.profile_export_btn)
+        toolbar.addWidget(self.profile_import_btn)
         toolbar.addWidget(self.refresh_btn)
         toolbar.addWidget(self.connect_wifi_btn)
         toolbar.addWidget(self.pair_wifi_btn)
@@ -458,6 +464,8 @@ class MainWindow(QMainWindow):
         self.profile_save_btn.clicked.connect(self._save_device_profile)
         self.profile_load_btn.clicked.connect(self._load_selected_profile)
         self.profile_delete_btn.clicked.connect(self._delete_selected_profile)
+        self.profile_export_btn.clicked.connect(self._export_profiles_json)
+        self.profile_import_btn.clicked.connect(self._import_profiles_json)
         self.profile_box.currentIndexChanged.connect(self._profile_selection_changed)
         self._refresh_profile_box()
 
@@ -514,6 +522,11 @@ class MainWindow(QMainWindow):
         quick.addWidget(self.export_report_btn)
         quick.addStretch()
         layout.addLayout(quick)
+
+        self.dashboard_summary_label = QLabel("")
+        self.dashboard_summary_label.setObjectName("metricLabel")
+        self.dashboard_summary_label.setWordWrap(True)
+        layout.addWidget(self.dashboard_summary_label)
 
         split = QSplitter()
         split.setChildrenCollapsible(False)
@@ -611,6 +624,7 @@ class MainWindow(QMainWindow):
         self.health_run_btn.clicked.connect(self._run_health_check)
         self.health_export_btn.clicked.connect(self._export_health_report)
         self.health_export_html_btn.clicked.connect(self._export_health_report_html)
+        self._refresh_dashboard_summary()
 
     def _build_metric_card(self, label: str, value: str, value_attr: str) -> QWidget:
         card = QWidget()
@@ -2209,12 +2223,16 @@ class MainWindow(QMainWindow):
         self.transfer_saved_presets.setMinimumWidth(220)
         self.transfer_save_preset_btn = QPushButton("Sauver preset")
         self.transfer_delete_preset_btn = QPushButton("Supprimer preset")
+        self.transfer_export_presets_btn = QPushButton("Exporter presets")
+        self.transfer_import_presets_btn = QPushButton("Importer presets")
         self.transfer_pick_source_btn = QPushButton("Parcourir source")
         self.transfer_pick_dest_btn = QPushButton("Parcourir destination")
         self.transfer_add_btn = QPushButton("Ajouter file")
         self.transfer_add_btn.setObjectName("successBtn")
         self.transfer_save_preset_btn.setObjectName("ghostBtn")
         self.transfer_delete_preset_btn.setObjectName("dangerBtn")
+        self.transfer_export_presets_btn.setObjectName("ghostBtn")
+        self.transfer_import_presets_btn.setObjectName("ghostBtn")
         self.transfer_pick_source_btn.setObjectName("ghostBtn")
         self.transfer_pick_dest_btn.setObjectName("ghostBtn")
         top.addWidget(self.transfer_direction)
@@ -2222,6 +2240,8 @@ class MainWindow(QMainWindow):
         top.addWidget(self.transfer_saved_presets)
         top.addWidget(self.transfer_save_preset_btn)
         top.addWidget(self.transfer_delete_preset_btn)
+        top.addWidget(self.transfer_export_presets_btn)
+        top.addWidget(self.transfer_import_presets_btn)
         top.addWidget(self.transfer_source, 1)
         top.addWidget(self.transfer_pick_source_btn)
         top.addWidget(self.transfer_destination, 1)
@@ -2298,6 +2318,18 @@ class MainWindow(QMainWindow):
         self.transfer_queue_table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers
         )
+        queue_actions = QHBoxLayout()
+        self.transfer_move_up_btn = QPushButton("Monter")
+        self.transfer_move_down_btn = QPushButton("Descendre")
+        self.transfer_remove_selected_btn = QPushButton("Retirer selection")
+        self.transfer_move_up_btn.setObjectName("ghostBtn")
+        self.transfer_move_down_btn.setObjectName("ghostBtn")
+        self.transfer_remove_selected_btn.setObjectName("dangerBtn")
+        queue_actions.addWidget(self.transfer_move_up_btn)
+        queue_actions.addWidget(self.transfer_move_down_btn)
+        queue_actions.addWidget(self.transfer_remove_selected_btn)
+        queue_actions.addStretch()
+        layout.addLayout(queue_actions)
         layout.addWidget(self.transfer_queue_table, 1)
         self.sync_preview_table = QTableWidget(0, 5)
         self.sync_preview_table.setHorizontalHeaderLabels(
@@ -2341,8 +2373,21 @@ class MainWindow(QMainWindow):
         self.sync_run_btn.clicked.connect(self._run_smart_sync)
         self.transfer_save_preset_btn.clicked.connect(self._save_transfer_preset)
         self.transfer_delete_preset_btn.clicked.connect(self._delete_transfer_preset)
+        self.transfer_export_presets_btn.clicked.connect(
+            self._export_transfer_presets
+        )
+        self.transfer_import_presets_btn.clicked.connect(
+            self._import_transfer_presets
+        )
         self.transfer_saved_presets.currentIndexChanged.connect(
             self._load_selected_transfer_preset
+        )
+        self.transfer_move_up_btn.clicked.connect(self._move_selected_transfer_task_up)
+        self.transfer_move_down_btn.clicked.connect(
+            self._move_selected_transfer_task_down
+        )
+        self.transfer_remove_selected_btn.clicked.connect(
+            self._remove_selected_transfer_task
         )
         self._refresh_transfer_saved_presets()
         self._on_transfer_preset_changed(self.transfer_preset.currentText())
@@ -2473,6 +2518,7 @@ class MainWindow(QMainWindow):
         self.config.set("transfer.saved_presets", presets)
         self.config.save()
         self._refresh_transfer_saved_presets()
+        self._refresh_dashboard_summary()
         idx = self.transfer_saved_presets.findData(preset_name)
         if idx >= 0:
             self.transfer_saved_presets.setCurrentIndex(idx)
@@ -2490,7 +2536,67 @@ class MainWindow(QMainWindow):
         self.config.set("transfer.saved_presets", presets)
         self.config.save()
         self._refresh_transfer_saved_presets()
+        self._refresh_dashboard_summary()
         Toast(self, f"Preset supprime: {name}")
+
+    def _export_transfer_presets(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exporter presets transfert",
+            str(
+                self.base_dir
+                / "backups"
+                / f"transfer_presets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            ),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        raw = self.config.get("transfer.saved_presets", {})
+        presets = raw if isinstance(raw, dict) else {}
+        payload = {
+            "exported_at": datetime.utcnow().isoformat() + "Z",
+            "presets": presets,
+        }
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        self._refresh_dashboard_summary()
+        Toast(self, f"Presets exportes: {Path(path).name}")
+
+    def _import_transfer_presets(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Importer presets transfert",
+            str(self.base_dir / "backups"),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        reply = QMessageBox.question(
+            self,
+            "Importer presets",
+            "Fusionner ces presets avec les presets actuels ?",
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            raw = json.loads(Path(path).read_text(encoding="utf-8"))
+            presets = raw.get("presets", {}) if isinstance(raw, dict) else {}
+            if not isinstance(presets, dict):
+                raise ValueError("Invalid preset bundle")
+            current = self.config.get("transfer.saved_presets", {})
+            merged = dict(current) if isinstance(current, dict) else {}
+            merged.update(presets)
+            self.config.set("transfer.saved_presets", merged)
+            self.config.save()
+        except Exception as exc:  # noqa: BLE001
+            Toast(self, f"Echec import presets: {exc}")
+            return
+        self._refresh_transfer_saved_presets()
+        self._refresh_dashboard_summary()
+        Toast(self, "Presets de transfert importes")
 
     def _load_selected_transfer_preset(self, _index: int) -> None:
         name = str(self.transfer_saved_presets.currentData() or "").strip()
@@ -3384,6 +3490,43 @@ class MainWindow(QMainWindow):
             elif status in {"success", "ok", "done", "dry_run"}:
                 status_item.setForeground(QColor("#86efac"))
             self.transfer_queue_table.setItem(row, 7, status_item)
+
+    def _selected_transfer_queue_index(self) -> int:
+        if not hasattr(self, "transfer_queue_table"):
+            return -1
+        row = self.transfer_queue_table.currentRow()
+        return row if 0 <= row < len(self._transfer_queue) else -1
+
+    def _move_selected_transfer_task_up(self) -> None:
+        idx = self._selected_transfer_queue_index()
+        if idx <= 0:
+            return
+        self._transfer_queue[idx - 1], self._transfer_queue[idx] = (
+            self._transfer_queue[idx],
+            self._transfer_queue[idx - 1],
+        )
+        self._refresh_transfer_queue_table()
+        self.transfer_queue_table.selectRow(idx - 1)
+
+    def _move_selected_transfer_task_down(self) -> None:
+        idx = self._selected_transfer_queue_index()
+        if idx < 0 or idx >= len(self._transfer_queue) - 1:
+            return
+        self._transfer_queue[idx + 1], self._transfer_queue[idx] = (
+            self._transfer_queue[idx],
+            self._transfer_queue[idx + 1],
+        )
+        self._refresh_transfer_queue_table()
+        self.transfer_queue_table.selectRow(idx + 1)
+
+    def _remove_selected_transfer_task(self) -> None:
+        idx = self._selected_transfer_queue_index()
+        if idx < 0:
+            return
+        del self._transfer_queue[idx]
+        self._refresh_transfer_queue_table()
+        if self._transfer_queue:
+            self.transfer_queue_table.selectRow(min(idx, len(self._transfer_queue) - 1))
 
     def _add_transfer_task(self) -> None:
         serial = self._selected_serial()
@@ -4911,6 +5054,7 @@ class MainWindow(QMainWindow):
                 for serial, model, event, ts in hist_rows
             )
         )
+        self._refresh_dashboard_summary()
 
     def _selected_serial(self) -> str | None:
         if self.device_box.count() == 0:
@@ -4926,11 +5070,31 @@ class MainWindow(QMainWindow):
         self._run_health_check()
         if hasattr(self, "notify_table"):
             self._refresh_notifications_view()
+        self._refresh_dashboard_summary()
         self._audit_event(
             event_type="system",
             action="manual_refresh",
             status="ok",
             message="Manual refresh triggered",
+        )
+
+    def _refresh_dashboard_summary(self) -> None:
+        if not hasattr(self, "dashboard_summary_label"):
+            return
+        profiles = len(self.profiles_module.list_profiles())
+        transfer_presets = self.config.get("transfer.saved_presets", {})
+        transfer_count = len(transfer_presets) if isinstance(transfer_presets, dict) else 0
+        batch_packs = self.config.get("ui.batch_saved_packs", {})
+        batch_count = len(batch_packs) if isinstance(batch_packs, dict) else 0
+        commands = self._commands_payload()
+        favorite_count = len(commands.get("favorites", [])) if isinstance(commands, dict) else 0
+        health = self._last_device_health_report if isinstance(self._last_device_health_report, dict) else {}
+        health_score = health.get("score", "n/a")
+        health_status = health.get("status", "n/a")
+        self.dashboard_summary_label.setText(
+            "Raccourci produit: "
+            f"profils={profiles} | presets transfert={transfer_count} | packs batch={batch_count} | "
+            f"favoris commandes={favorite_count} | health={health_score}/{health_status}"
         )
 
     def _current_transport(self, serial: str | None) -> str:
@@ -5407,6 +5571,7 @@ class MainWindow(QMainWindow):
         )
         saved = self.profiles_module.save_profile(profile)
         self._refresh_profile_box()
+        self._refresh_dashboard_summary()
         idx = self.profile_box.findData(saved.profile_id)
         if idx >= 0:
             self.profile_box.setCurrentIndex(idx)
@@ -5460,7 +5625,53 @@ class MainWindow(QMainWindow):
             return
         self.profiles_module.delete_profile(profile.profile_id)
         self._refresh_profile_box()
+        self._refresh_dashboard_summary()
         Toast(self, "Profil supprime")
+
+    def _export_profiles_json(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exporter profils",
+            str(
+                self.base_dir
+                / "backups"
+                / f"profiles_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            ),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            self.profiles_module.export_profiles(Path(path))
+        except Exception as exc:  # noqa: BLE001
+            Toast(self, f"Echec export profils: {exc}")
+            return
+        Toast(self, f"Profils exportes: {Path(path).name}")
+
+    def _import_profiles_json(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Importer profils",
+            str(self.base_dir / "backups"),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        reply = QMessageBox.question(
+            self,
+            "Importer profils",
+            "Fusionner ces profils avec la configuration actuelle ?",
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            count = self.profiles_module.import_profiles(Path(path), replace=False)
+        except Exception as exc:  # noqa: BLE001
+            Toast(self, f"Echec import profils: {exc}")
+            return
+        self._refresh_profile_box()
+        self._refresh_dashboard_summary()
+        Toast(self, f"{count} profil(s) importe(s)")
 
     def _autoload_profile_for_device(self, serial: str) -> None:
         if self._profiles_suppress_autoload:
@@ -5596,6 +5807,7 @@ class MainWindow(QMainWindow):
         self._refresh_remote_device_box()
         self._refresh_remote_targets_list()
         self._rebuild_command_catalog()
+        self._refresh_dashboard_summary()
 
     def _export_settings_bundle(self) -> None:
         path, _ = QFileDialog.getSaveFileName(

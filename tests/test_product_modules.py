@@ -78,6 +78,29 @@ class DeviceProfilesTests(unittest.TestCase):
             mod.delete_profile(created.profile_id)
             self.assertEqual(mod.list_profiles(), [])
 
+    def test_export_and_import_profiles_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = ConfigManager(Path(tmp) / "settings.json")
+            mod = DeviceProfilesModule(cfg)
+
+            mod.save_profile(
+                DeviceProfile(
+                    profile_id="",
+                    alias="Pixel USB",
+                    serial="ABC123",
+                    favorite_commands=["reboot"],
+                )
+            )
+            bundle = Path(tmp) / "profiles.json"
+            mod.export_profiles(bundle)
+
+            cfg2 = ConfigManager(Path(tmp) / "settings2.json")
+            mod2 = DeviceProfilesModule(cfg2)
+            count = mod2.import_profiles(bundle)
+
+            self.assertEqual(count, 1)
+            self.assertEqual(mod2.list_profiles()[0].alias, "Pixel USB")
+
     def test_save_profile_upserts_by_serial_when_id_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cfg = ConfigManager(Path(tmp) / "settings.json")

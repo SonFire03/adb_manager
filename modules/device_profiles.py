@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, asdict
 from datetime import datetime
+from pathlib import Path
 from uuid import uuid4
 
 from core.utils import ConfigManager
@@ -124,3 +126,66 @@ class DeviceProfilesModule:
             if text:
                 out.append(text)
         return out
+
+    def export_profiles(self, output: Path) -> None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "exported_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "profiles": [asdict(profile) for profile in self.list_profiles()],
+        }
+        output.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
+    def import_profiles(self, source: Path, replace: bool = False) -> int:
+        raw = json.loads(source.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("Invalid profile bundle")
+        profiles_raw = raw.get("profiles", [])
+        if not isinstance(profiles_raw, list):
+            raise ValueError("Invalid profile bundle")
+        imported: list[DeviceProfile] = []
+        for row in profiles_raw:
+            if not isinstance(row, dict):
+                continue
+            alias = str(row.get("alias", "")).strip()
+            serial = str(row.get("serial", "")).strip()
+            if not alias or not serial:
+                continue
+            imported.append(
+                DeviceProfile(
+                    profile_id=str(row.get("profile_id", "")).strip(),
+                    alias=alias,
+                    serial=serial,
+                    wifi_endpoint=str(row.get("wifi_endpoint", "")).strip(),
+                    favorite_local_path=str(row.get("favorite_local_path", "")).strip(),
+                    favorite_remote_path=str(row.get("favorite_remote_path", "")).strip(),
+                    last_actions=self._to_list(row.get("last_actions")),
+                    favorite_commands=self._to_list(row.get("favorite_commands")),
+                    ui_theme=str(row.get("ui_theme", "dark")).strip() or "dark",
+                    ui_density=str(row.get("ui_density", "comfortable")).strip()
+                    or "comfortable",
+                    language=str(row.get("language", "fr")).strip() or "fr",
+                    tags=self._to_list(row.get("tags")),
+                    last_seen=str(row.get("last_seen", "")).strip(),
+                )
+            )
+        if replace:
+            self._persist(imported)
+            return len(imported)
+        current = self.list_profiles()
+        by_id = {p.profile_id: p for p in current if p.profile_id}
+        by_serial = {p.serial: p for p in current if p.serial}
+        for profile in imported:
+            if profile.profile_id and profile.profile_id in by_id:
+                by_id[profile.profile_id] = profile
+            elif profile.serial and profile.serial in by_serial:
+                existing = by_serial[profile.serial]
+                profile.profile_id = existing.profile_id
+                by_id[existing.profile_id] = profile
+            else:
+                by_id[profile.profile_id or uuid4().hex[:10]] = profile
+        merged = list(by_id.values())
+        merged.sort(key=lambda p: p.alias.lower())
+        self._persist(merged)
+        return len(imported)

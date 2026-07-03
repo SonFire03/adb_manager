@@ -7,6 +7,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Export/import dédié pour les profils appareils.
+- Export/import dédié pour les presets de transfert.
+- Réordonnancement de la file batch.
+- Résumé produit sur le dashboard.
 - Bundle de configuration exportable/importable pour settings, profils et favoris commandes.
 - Import bundle plus robuste avec resynchronisation des contrôles UI principaux.
 - Deep `DeviceHealthModule` tests to cover scoring, sections, parsing, and failure branches.
