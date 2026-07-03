@@ -198,6 +198,11 @@ QLineEdit, QTextEdit, QPlainTextEdit, QListWidget, QTreeWidget, QTableWidget, QC
     padding: 8px;
     selection-background-color: __ACCENT__;
 }
+QTableView {
+    background-color: __INPUT__;
+    alternate-background-color: __INPUT_ALT__;
+    selection-background-color: rgba(245, 158, 11, 0.22);
+}
 QLineEdit#pathInput {
     background-color: __INPUT_ALT__;
     border-color: __BORDER__;
@@ -228,17 +233,24 @@ QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QListWidget:focus, QTree
 QTableWidget {
     gridline-color: __BORDER__;
 }
+QTableWidget::item {
+    background-color: __INPUT__;
+    color: __TEXT__;
+    padding: 6px;
+    border-bottom: 1px solid __BORDER__;
+    border-right: 1px solid __BORDER__;
+}
 QHeaderView::section {
-    background-color: #e2e8f0;
+    background-color: __PANEL_ALT__;
     color: __TITLE__;
-    border: 0;
+    border: 1px solid __BORDER__;
     padding: 8px;
     font-weight: 700;
 }
 QTabWidget::pane {
     border: 1px solid __BORDER__;
     border-radius: 12px;
-    background-color: rgba(9, 15, 24, 0.72);
+    background-color: __PANEL__;
     padding: 8px;
 }
 QProgressBar {
