@@ -5496,6 +5496,10 @@ class MainWindow(QMainWindow):
     def _sync_ui_from_config(self) -> None:
         if hasattr(self, "theme_box"):
             self.theme_box.setCurrentText(str(self.config.get("app.theme", "dark")))
+        if hasattr(self, "command_filter_box"):
+            self.command_filter_box.setCurrentText(
+                str(self.config.get("ui.command_root_filter", "Toutes"))
+            )
         if hasattr(self, "density_box"):
             self.density_box.setCurrentText(
                 str(self.config.get("ui.density", "comfortable"))
@@ -5508,6 +5512,71 @@ class MainWindow(QMainWindow):
             self.favorites_only.setChecked(
                 bool(self.config.get("ui.command_favorites_only", False))
             )
+        if hasattr(self, "confirm_critical_box"):
+            self.confirm_critical_box.setChecked(
+                bool(self.config.get("ui.confirm_critical_commands", True))
+            )
+        if hasattr(self, "logcat_autoscroll_box"):
+            self.logcat_autoscroll_box.setChecked(
+                bool(self.config.get("ui.logcat_auto_scroll", True))
+            )
+        if hasattr(self, "scrcpy_path_input"):
+            self.scrcpy_path_input.setText(
+                str(self.config.get("app.scrcpy_bin", "scrcpy"))
+            )
+        if hasattr(self, "scrcpy_bitrate"):
+            self.scrcpy_bitrate.setValue(
+                int(self.config.get("remote.scrcpy_bitrate_m", 12))
+            )
+        if hasattr(self, "scrcpy_max_size"):
+            self.scrcpy_max_size.setValue(
+                int(self.config.get("remote.scrcpy_max_size", 1280))
+            )
+        if hasattr(self, "scrcpy_max_fps"):
+            self.scrcpy_max_fps.setValue(
+                int(self.config.get("remote.scrcpy_max_fps", 60))
+            )
+        if hasattr(self, "scrcpy_no_audio"):
+            self.scrcpy_no_audio.setChecked(
+                bool(self.config.get("remote.scrcpy_no_audio", True))
+            )
+        if hasattr(self, "scrcpy_fullscreen"):
+            self.scrcpy_fullscreen.setChecked(
+                bool(self.config.get("remote.scrcpy_fullscreen", False))
+            )
+        if hasattr(self, "scrcpy_always_on_top"):
+            self.scrcpy_always_on_top.setChecked(
+                bool(self.config.get("remote.scrcpy_always_on_top", False))
+            )
+        if hasattr(self, "scrcpy_turn_screen_off"):
+            self.scrcpy_turn_screen_off.setChecked(
+                bool(self.config.get("remote.scrcpy_turn_screen_off", False))
+            )
+        if hasattr(self, "scrcpy_stay_awake"):
+            self.scrcpy_stay_awake.setChecked(
+                bool(self.config.get("remote.scrcpy_stay_awake", False))
+            )
+        if hasattr(self, "scrcpy_show_touches"):
+            self.scrcpy_show_touches.setChecked(
+                bool(self.config.get("remote.scrcpy_show_touches", False))
+            )
+        if hasattr(self, "scrcpy_no_control"):
+            self.scrcpy_no_control.setChecked(
+                bool(self.config.get("remote.scrcpy_no_control", False))
+            )
+        if hasattr(self, "scrcpy_extra_args"):
+            self.scrcpy_extra_args.setText(
+                str(self.config.get("remote.scrcpy_extra_args", ""))
+            )
+        if hasattr(self, "remote_action_scope_box"):
+            scope_saved = str(self.config.get("remote.actions_scope", "selected"))
+            scope_idx = self.remote_action_scope_box.findData(scope_saved)
+            self.remote_action_scope_box.setCurrentIndex(scope_idx if scope_idx >= 0 else 0)
+        if hasattr(self, "remote_device_box"):
+            current_serial = self._selected_serial() or ""
+            idx = self.remote_device_box.findData(current_serial)
+            if idx >= 0:
+                self.remote_device_box.setCurrentIndex(idx)
         if hasattr(self, "batch_workers_spin"):
             self.batch_workers_spin.setValue(int(self.config.get("ui.batch_workers", 2)))
         if hasattr(self, "batch_retry_spin"):
@@ -5524,6 +5593,8 @@ class MainWindow(QMainWindow):
         self._refresh_profile_box()
         self._refresh_transfer_saved_presets()
         self._refresh_batch_packs()
+        self._refresh_remote_device_box()
+        self._refresh_remote_targets_list()
         self._rebuild_command_catalog()
 
     def _export_settings_bundle(self) -> None:
