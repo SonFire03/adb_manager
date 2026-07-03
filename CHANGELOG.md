@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 - Refonte globale des couleurs de l'UI avec un accent ambre.
+- Contours renforcés sur le thème clair pour mieux distinguer les panneaux.
 - Rapport global HTML plus lisible.
 - Index HTML enrichi pour les support bundles.
 - Export/import dédié pour les profils appareils.

@@ -35,8 +35,8 @@ BG_LIGHT_PANEL = "#ffffff"
 BG_LIGHT_PANEL_ALT = "#f9fcff"
 BG_LIGHT_INPUT = "#ffffff"
 BG_LIGHT_INPUT_ALT = "#f7fbff"
-BG_LIGHT_BORDER = "#d4dfeb"
-BG_LIGHT_BORDER_SOFT = "#c8d7e6"
+BG_LIGHT_BORDER = "#1f2937"
+BG_LIGHT_BORDER_SOFT = "#374151"
 TEXT_LIGHT = "#0f1b2d"
 TEXT_LIGHT_MUTED = "#60758f"
 TEXT_LIGHT_TITLE = "#07101c"
@@ -229,7 +229,7 @@ QTableWidget {
     gridline-color: __BORDER__;
 }
 QHeaderView::section {
-    background-color: __PANEL_ALT__;
+    background-color: #e2e8f0;
     color: __TITLE__;
     border: 0;
     padding: 8px;
@@ -468,7 +468,7 @@ QHeaderView::section {
 QTabWidget::pane {
     border: 1px solid __BORDER__;
     border-radius: 12px;
-    background-color: rgba(255, 255, 255, 0.82);
+    background-color: rgba(255, 255, 255, 0.92);
     padding: 8px;
 }
 QProgressBar {
@@ -489,11 +489,11 @@ QSplitter::handle {
     height: 1px;
 }
 QStatusBar {
-    background: __BG_ALT__;
+    background: #f3f6fb;
     border-top: 1px solid __BORDER__;
 }
 QScrollBar:vertical {
-    background: __BG_ALT__;
+    background: #f2f5fa;
     width: 12px;
     margin: 2px;
 }
