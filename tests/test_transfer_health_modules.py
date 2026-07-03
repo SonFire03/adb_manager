@@ -109,6 +109,18 @@ class DataTransferTests(unittest.TestCase):
             self.assertTrue(res["integrity"]["checked"])
             self.assertTrue(res["integrity"]["ok"])
 
+    def test_make_task_checksum_options(self) -> None:
+        task = self.mod.make_task(
+            serial="ABC",
+            direction="host_to_device",
+            source="/tmp/file.txt",
+            destination="/sdcard/Download",
+            verify_integrity=False,
+            checksum_algorithm="md5",
+        )
+        self.assertFalse(task.verify_integrity)
+        self.assertEqual(task.checksum_algorithm, "md5")
+
     def test_estimate_host_source_missing(self) -> None:
         task = self.mod.make_task(
             serial="ABC",

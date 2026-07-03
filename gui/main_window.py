@@ -59,6 +59,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
+    QFormLayout,
     QListWidget,
     QListWidgetItem,
     QListView,
@@ -68,6 +69,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QProgressBar,
+    QFrame,
     QSplitter,
     QSpinBox,
     QTabWidget,
@@ -252,10 +254,13 @@ class MainWindow(QMainWindow):
         self._transfer_queue: list[dict[str, Any]] = []
         self._transfer_reports: list[dict[str, Any]] = []
         self._transfer_running = False
+        self._transfer_verify_integrity = True
+        self._transfer_checksum_algorithm = "sha256"
         self._last_device_health_report: dict[str, Any] = {}
         self._health_history_rows: list[dict[str, Any]] = []
         self._sync_preview_data: dict[str, Any] = {}
         self._workflow_run_history: list[dict[str, Any]] = []
+        self._workflow_var_widgets: dict[str, QWidget] = {}
 
         self.setWindowTitle("ADB Manager Pro")
         self.resize(1440, 920)
@@ -570,10 +575,13 @@ class MainWindow(QMainWindow):
         self.health_run_btn.setObjectName("successBtn")
         self.health_export_btn = QPushButton("Export Health JSON")
         self.health_export_btn.setObjectName("ghostBtn")
+        self.health_export_html_btn = QPushButton("Export Health HTML")
+        self.health_export_html_btn.setObjectName("ghostBtn")
         self.health_status_badge = QLabel("Global: n/a")
         self.health_status_badge.setObjectName("deviceBadge")
         health_top.addWidget(self.health_run_btn)
         health_top.addWidget(self.health_export_btn)
+        health_top.addWidget(self.health_export_html_btn)
         health_top.addStretch()
         health_top.addWidget(self.health_status_badge)
         health_layout.addLayout(health_top)
@@ -601,6 +609,7 @@ class MainWindow(QMainWindow):
         self.inspector_export_btn.clicked.connect(self._export_device_inspector)
         self.health_run_btn.clicked.connect(self._run_health_check)
         self.health_export_btn.clicked.connect(self._export_health_report)
+        self.health_export_html_btn.clicked.connect(self._export_health_report_html)
 
     def _build_metric_card(self, label: str, value: str, value_attr: str) -> QWidget:
         card = QWidget()
@@ -2070,6 +2079,10 @@ class MainWindow(QMainWindow):
 
         action_row = QHBoxLayout()
         self.transfer_dry_run = QCheckBox("Dry-run (preview uniquement)")
+        self.transfer_verify_checksum = QCheckBox("Checksum")
+        self.transfer_verify_checksum.setChecked(True)
+        self.transfer_checksum_algo = QComboBox()
+        self.transfer_checksum_algo.addItems(["sha256", "md5"])
         self.sync_mode_box = QComboBox()
         self.sync_mode_box.addItems(
             [
@@ -2090,6 +2103,8 @@ class MainWindow(QMainWindow):
         self.transfer_clear_btn.setObjectName("dangerBtn")
         self.transfer_export_btn.setObjectName("ghostBtn")
         action_row.addWidget(self.transfer_dry_run)
+        action_row.addWidget(self.transfer_verify_checksum)
+        action_row.addWidget(self.transfer_checksum_algo)
         action_row.addWidget(self.sync_mode_box)
         action_row.addWidget(self.sync_preview_btn)
         action_row.addWidget(self.sync_run_btn)
@@ -2275,6 +2290,8 @@ class MainWindow(QMainWindow):
             "source": self.transfer_source.text().strip(),
             "destination": self.transfer_destination.text().strip(),
             "dry_run": bool(self.transfer_dry_run.isChecked()),
+            "verify_integrity": bool(self.transfer_verify_checksum.isChecked()),
+            "checksum_algorithm": self.transfer_checksum_algo.currentText().strip(),
         }
         self.config.set("transfer.saved_presets", presets)
         self.config.save()
@@ -2322,6 +2339,13 @@ class MainWindow(QMainWindow):
             str(item.get("destination", self.transfer_destination.text()))
         )
         self.transfer_dry_run.setChecked(bool(item.get("dry_run", False)))
+        self.transfer_verify_checksum.setChecked(
+            bool(item.get("verify_integrity", True))
+        )
+        checksum = str(item.get("checksum_algorithm", "sha256")).strip()
+        idx = self.transfer_checksum_algo.findText(checksum)
+        if idx >= 0:
+            self.transfer_checksum_algo.setCurrentIndex(idx)
 
     def _build_device_health_tab(self) -> None:
         tab = QWidget()
@@ -2496,6 +2520,23 @@ class MainWindow(QMainWindow):
         self.workflow_desc.setReadOnly(True)
         self.workflow_desc.setPlaceholderText("Description workflow et etapes...")
         rl.addWidget(self.workflow_desc)
+        self.workflow_vars_box = QGroupBox("Variables workflow")
+        self.workflow_vars_box.setObjectName("panelCard")
+        vars_layout = QVBoxLayout(self.workflow_vars_box)
+        vars_layout.setContentsMargins(10, 10, 10, 10)
+        self.workflow_vars_summary = QLabel("Selectionner un workflow pour voir ses variables.")
+        self.workflow_vars_summary.setWordWrap(True)
+        vars_layout.addWidget(self.workflow_vars_summary)
+        self.workflow_vars_scroll = QScrollArea()
+        self.workflow_vars_scroll.setWidgetResizable(True)
+        self.workflow_vars_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.workflow_vars_scroll_content = QWidget()
+        self.workflow_vars_form = QFormLayout(self.workflow_vars_scroll_content)
+        self.workflow_vars_form.setContentsMargins(0, 0, 0, 0)
+        self.workflow_vars_form.setSpacing(8)
+        self.workflow_vars_scroll.setWidget(self.workflow_vars_scroll_content)
+        vars_layout.addWidget(self.workflow_vars_scroll, 1)
+        rl.addWidget(self.workflow_vars_box)
         self.workflow_log = QTextEdit()
         self.workflow_log.setReadOnly(True)
         self.workflow_log.setPlaceholderText("Historique executions workflow...")
@@ -2608,6 +2649,82 @@ class MainWindow(QMainWindow):
                 return wf
         return None
 
+    def _clear_workflow_variables_form(self) -> None:
+        while self.workflow_vars_form.rowCount():
+            self.workflow_vars_form.removeRow(0)
+        self._workflow_var_widgets.clear()
+
+    def _parse_bool_text(self, value: str) -> bool:
+        text = value.strip().lower()
+        return text in {"1", "true", "yes", "oui", "on", "y"}
+
+    def _workflow_variable_value(
+        self, key: str, default: str, widget: QWidget
+    ) -> str:
+        if isinstance(widget, QCheckBox):
+            return "true" if widget.isChecked() else "false"
+        if isinstance(widget, QLineEdit):
+            text = widget.text().strip()
+            return text if text else default
+        return default
+
+    def _workflow_variables_for(self, wf: dict[str, Any]) -> dict[str, str]:
+        values: dict[str, str] = {}
+        variables = wf.get("variables", [])
+        if not isinstance(variables, list):
+            return values
+        for var in variables:
+            item = var if isinstance(var, dict) else {}
+            key = str(item.get("key", "")).strip()
+            if not key:
+                continue
+            default = str(item.get("default", "")).strip()
+            widget = self._workflow_var_widgets.get(key)
+            if widget is None:
+                values[key] = default
+                continue
+            values[key] = self._workflow_variable_value(key, default, widget)
+        return values
+
+    def _apply_workflow_variables(self, wf: dict[str, Any]) -> None:
+        self._clear_workflow_variables_form()
+        variables = wf.get("variables", [])
+        if not isinstance(variables, list) or not variables:
+            self.workflow_vars_summary.setText("Aucune variable pour ce workflow.")
+            return
+        self.workflow_vars_summary.setText(
+            f"{len(variables)} variable(s) editable(s) avant execution."
+        )
+        for var in variables:
+            item = var if isinstance(var, dict) else {}
+            key = str(item.get("key", "")).strip()
+            if not key:
+                continue
+            label = str(item.get("label", key)).strip() or key
+            desc = str(item.get("description", "")).strip()
+            default = str(item.get("default", "")).strip()
+            if default.lower() in {"true", "false"}:
+                widget = QCheckBox(label)
+                widget.setChecked(self._parse_bool_text(default))
+                if desc:
+                    widget.setToolTip(desc)
+                self.workflow_vars_form.addRow("", widget)
+            else:
+                widget = QLineEdit(default)
+                if desc:
+                    widget.setPlaceholderText(desc)
+                self.workflow_vars_form.addRow(QLabel(label), widget)
+            self._workflow_var_widgets[key] = widget
+
+    def _workflow_step_enabled(
+        self, action: str, vars_state: dict[str, str]
+    ) -> bool:
+        if action == "capture_snapshot":
+            return self._parse_bool_text(vars_state.get("include_snapshot", "true"))
+        if action == "support_bundle":
+            return True
+        return True
+
     def _on_workflow_selected(self) -> None:
         wf = self._selected_workflow()
         if not wf:
@@ -2641,6 +2758,7 @@ class MainWindow(QMainWindow):
             if notes:
                 lines.append(f"  {notes}")
         self.workflow_desc.setPlainText("\n".join(lines))
+        self._apply_workflow_variables(wf)
 
     def _run_selected_workflow(self) -> None:
         wf = self._selected_workflow()
@@ -2648,23 +2766,34 @@ class MainWindow(QMainWindow):
         if not wf or not serial:
             Toast(self, "Workflow ou appareil manquant")
             return
+        vars_state = self._workflow_variables_for(wf)
         self._run_in_worker(
             "workflow_execute",
-            lambda: self._execute_workflow_sync(wf, serial),
-            {"serial": serial, "workflow_id": str(wf.get("workflow_id", ""))},
+            lambda: self._execute_workflow_sync(wf, serial, vars_state),
+            {
+                "serial": serial,
+                "workflow_id": str(wf.get("workflow_id", "")),
+                "workflow_vars": vars_state,
+            },
         )
 
     def _execute_workflow_sync(
-        self, workflow: dict[str, Any], serial: str
+        self, workflow: dict[str, Any], serial: str, workflow_vars: dict[str, str]
     ) -> dict[str, Any]:
         steps = workflow.get("steps", [])
         steps = steps if isinstance(steps, list) else []
         logs: list[str] = []
         errors: list[str] = []
+        logs.append(
+            f"VARS {json.dumps(workflow_vars, ensure_ascii=False, sort_keys=True)}"
+        )
         for raw in steps:
             step = raw if isinstance(raw, dict) else {}
             action = str(step.get("action", ""))
             title = str(step.get("title", action))
+            if not self._workflow_step_enabled(action, workflow_vars):
+                logs.append(f"SKIP {title}")
+                continue
             logs.append(f"START {title}")
             try:
                 if action == "refresh_devices":
@@ -2678,18 +2807,31 @@ class MainWindow(QMainWindow):
                         serial, self._current_device_info()
                     )
                 elif action == "capture_snapshot":
+                    if not self._parse_bool_text(
+                        workflow_vars.get("include_snapshot", "true")
+                    ):
+                        logs.append("SKIP capture_snapshot disabled by workflow variable")
+                        continue
                     snap = self.snapshot_module.capture_snapshot(
                         serial, self._current_device_info()
                     )
                     self._snapshot_last_captured_file = str(snap.get("file", ""))
                 elif action == "queue_transfer_dcim":
+                    dest_root = Path(
+                        workflow_vars.get(
+                            "destination_root",
+                            str(self.base_dir / "transfers"),
+                        )
+                    )
                     task = self.transfer_module.make_task(
                         serial=serial,
                         direction="device_to_host",
                         source="/sdcard/DCIM",
-                        destination=str(self.base_dir / "transfers" / "dcim"),
+                        destination=str(dest_root / "dcim"),
                         preset="DCIM",
                         dry_run=False,
+                        verify_integrity=self._transfer_verify_integrity,
+                        checksum_algorithm=self._transfer_checksum_algorithm,
                     )
                     self._transfer_queue.append(
                         {
@@ -2701,17 +2843,27 @@ class MainWindow(QMainWindow):
                             "destination": task.destination,
                             "preset": task.preset,
                             "dry_run": task.dry_run,
+                            "verify_integrity": task.verify_integrity,
+                            "checksum_algorithm": task.checksum_algorithm,
                             "status": "queued",
                         }
                     )
                 elif action == "queue_transfer_screenshots":
+                    dest_root = Path(
+                        workflow_vars.get(
+                            "destination_root",
+                            str(self.base_dir / "transfers"),
+                        )
+                    )
                     task = self.transfer_module.make_task(
                         serial=serial,
                         direction="device_to_host",
                         source="/sdcard/Pictures/Screenshots",
-                        destination=str(self.base_dir / "transfers" / "screenshots"),
+                        destination=str(dest_root / "screenshots"),
                         preset="Screenshots",
                         dry_run=False,
+                        verify_integrity=self._transfer_verify_integrity,
+                        checksum_algorithm=self._transfer_checksum_algorithm,
                     )
                     self._transfer_queue.append(
                         {
@@ -2723,6 +2875,8 @@ class MainWindow(QMainWindow):
                             "destination": task.destination,
                             "preset": task.preset,
                             "dry_run": task.dry_run,
+                            "verify_integrity": task.verify_integrity,
+                            "checksum_algorithm": task.checksum_algorithm,
                             "status": "queued",
                         }
                     )
@@ -2735,25 +2889,41 @@ class MainWindow(QMainWindow):
                             destination=str(item.get("destination", "")),
                             preset=str(item.get("preset", "")),
                             dry_run=bool(item.get("dry_run", False)),
+                            verify_integrity=bool(item.get("verify_integrity", True)),
+                            checksum_algorithm=str(
+                                item.get(
+                                    "checksum_algorithm",
+                                    self._transfer_checksum_algorithm,
+                                )
+                            ),
                         )
                         res = self.transfer_module.execute_task(t)
                         item["status"] = str(res.get("status", "unknown"))
+                        item["verification"] = res.get("verification", {})
+                        item["integrity"] = res.get("integrity", {})
                         self._transfer_reports.append(res)
                 elif action == "adb_health":
                     self._health_report = self.health_module.run(
                         self._last_devices, serial
                     )
                 elif action == "load_logcat_recent":
+                    logcat_lines = workflow_vars.get("logcat_lines", "250").strip()
                     _ = self.adb.run(
-                        ["logcat", "-d", "-t", "200"], serial=serial, timeout=20
+                        ["logcat", "-d", "-t", logcat_lines or "250"],
+                        serial=serial,
+                        timeout=20,
                     )
                 elif action == "refresh_health_timeline":
                     pass
                 elif action == "export_transfer_report_auto":
-                    pass
+                    self._export_transfer_report()
                 elif action == "export_health_json_auto":
-                    pass
+                    self._export_health_report()
                 elif action == "support_bundle":
+                    bundle_name = workflow_vars.get("bundle_name", "workflow_bundle")
+                    include_logs = self._parse_bool_text(
+                        workflow_vars.get("include_logs", "false")
+                    )
                     data = self._collect_bundle_data(serial)
                     include = {
                         "device_inspector": True,
@@ -2763,10 +2933,10 @@ class MainWindow(QMainWindow):
                         "app_risk_summary": True,
                         "health_timeline": True,
                         "captures": True,
-                        "logs": False,
+                        "logs": include_logs,
                     }
                     self.bundle_module.create_bundle(
-                        bundle_name="workflow_bundle",
+                        bundle_name=bundle_name or "workflow_bundle",
                         serial=serial,
                         include=include,
                         data=data,
@@ -2781,6 +2951,7 @@ class MainWindow(QMainWindow):
             "workflow_id": str(workflow.get("workflow_id", "")),
             "title": str(workflow.get("title", "")),
             "serial": serial,
+            "variables": workflow_vars,
             "steps_total": len(steps),
             "errors": errors,
             "logs": logs,
@@ -3046,6 +3217,9 @@ class MainWindow(QMainWindow):
                 destination=destination,
                 preset=preset,
                 dry_run=bool(self.transfer_dry_run.isChecked()),
+                verify_integrity=bool(self.transfer_verify_checksum.isChecked()),
+                checksum_algorithm=self.transfer_checksum_algo.currentText().strip()
+                or "sha256",
             )
             row = {
                 "task_id": task.task_id,
@@ -3056,6 +3230,8 @@ class MainWindow(QMainWindow):
                 "destination": task.destination,
                 "preset": task.preset,
                 "dry_run": task.dry_run,
+                "verify_integrity": task.verify_integrity,
+                "checksum_algorithm": task.checksum_algorithm,
                 "status": "queued",
             }
             self._transfer_queue.append(row)
@@ -3099,6 +3275,10 @@ class MainWindow(QMainWindow):
                     destination=str(item.get("destination", "")),
                     preset=str(item.get("preset", "")),
                     dry_run=bool(item.get("dry_run", False)),
+                    verify_integrity=bool(item.get("verify_integrity", True)),
+                    checksum_algorithm=str(
+                        item.get("checksum_algorithm", self._transfer_checksum_algorithm)
+                    ),
                 )
                 task.task_id = str(item.get("task_id", task.task_id))
                 result = self.transfer_module.execute_task(task)
@@ -3160,6 +3340,8 @@ class MainWindow(QMainWindow):
         rows = []
         for rep in self._transfer_reports:
             task = rep.get("task", {}) if isinstance(rep, dict) else {}
+            verification = rep.get("verification", {}) if isinstance(rep, dict) else {}
+            integrity = rep.get("integrity", {}) if isinstance(rep, dict) else {}
             rows.append(
                 "<tr>"
                 f"<td>{escape(str(rep.get('task_id', task.get('task_id', ''))))}</td>"
@@ -3169,6 +3351,8 @@ class MainWindow(QMainWindow):
                 f"<td>{escape(str(task.get('destination', '')))}</td>"
                 f"<td>{escape(str(rep.get('status', '')))}</td>"
                 f"<td>{escape(str(rep.get('message', '')))}</td>"
+                f"<td>{escape(str(verification.get('detail', '')))}</td>"
+                f"<td>{escape(str(integrity.get('detail', '')))}</td>"
                 "</tr>"
             )
         html = (
@@ -3177,7 +3361,7 @@ class MainWindow(QMainWindow):
             "table{width:100%;border-collapse:collapse}th,td{border:1px solid #1f2937;padding:6px;font-size:12px}"
             "th{background:#111827}</style></head><body>"
             f"<h1>Transfer Report</h1><p>Session: {escape(self._session_id)}</p>"
-            "<table><thead><tr><th>ID</th><th>Serial</th><th>Direction</th><th>Source</th><th>Destination</th><th>Status</th><th>Message</th></tr></thead>"
+            "<table><thead><tr><th>ID</th><th>Serial</th><th>Direction</th><th>Source</th><th>Destination</th><th>Status</th><th>Message</th><th>Verification</th><th>Integrity</th></tr></thead>"
             f"<tbody>{''.join(rows)}</tbody></table></body></html>"
         )
         html_path.write_text(html, encoding="utf-8")
@@ -3616,6 +3800,7 @@ class MainWindow(QMainWindow):
             return
         report = self._last_device_health_report
         findings = report.get("findings", [])
+        priority_actions = report.get("priority_actions", [])
         rows = []
         if isinstance(findings, list):
             for finding in findings:
@@ -3630,12 +3815,25 @@ class MainWindow(QMainWindow):
                     f"<td>{escape(str(f.get('remediation', '')))}</td>"
                     "</tr>"
                 )
+        priority_html = []
+        if isinstance(priority_actions, list):
+            for item_raw in priority_actions:
+                item = item_raw if isinstance(item_raw, dict) else {}
+                priority_html.append(
+                    "<li>"
+                    f"<strong>{escape(str(item.get('title', '')))}</strong> "
+                    f"({escape(str(item.get('severity', '')))} / {escape(str(item.get('status', '')))}): "
+                    f"{escape(str(item.get('rationale', '')))}"
+                    f"<br>{escape(str(item.get('remediation', '')))}"
+                    "</li>"
+                )
         html = (
             "<!doctype html><html><head><meta charset='utf-8'><title>Device Health Report</title>"
             "<style>body{font-family:Arial;background:#0b1220;color:#e5e7eb;margin:20px}"
-            "table{width:100%;border-collapse:collapse}th,td{border:1px solid #1f2937;padding:6px;font-size:12px}"
-            "th{background:#111827}</style></head><body>"
+            "table{width:100%;border-collapse:collapse}th,td{border:1px solid #1f2937;padding:6px;font-size:12px;vertical-align:top}"
+            "th{background:#111827}ul{line-height:1.5}</style></head><body>"
             f"<h1>Device Health</h1><p>Serial: {escape(str(report.get('serial','')))} | Score: {escape(str(report.get('score','')))} | Status: {escape(str(report.get('status','')))}</p>"
+            f"<h2>Priority actions</h2><ul>{''.join(priority_html) if priority_html else '<li>Aucune action prioritaire</li>'}</ul>"
             "<table><thead><tr><th>Category</th><th>Title</th><th>Severity</th><th>Status</th><th>Evidence</th><th>Remediation</th></tr></thead>"
             f"<tbody>{''.join(rows)}</tbody></table></body></html>"
         )
@@ -5114,6 +5312,65 @@ class MainWindow(QMainWindow):
         )
         Toast(self, "Health check exporte")
 
+    def _export_health_report_html(self) -> None:
+        if not self._health_report:
+            Toast(self, "Aucun rapport health check")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Health Check HTML",
+            str(
+                self.base_dir
+                / "reports"
+                / f"health_check_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            ),
+            "HTML (*.html)",
+        )
+        if not path:
+            return
+        report = self._health_report
+        checks = report.get("checks", [])
+        recs = report.get("recommendations", [])
+        check_rows = []
+        if isinstance(checks, list):
+            for check in checks:
+                item = check if isinstance(check, dict) else {}
+                check_rows.append(
+                    "<tr>"
+                    f"<td>{escape(str(item.get('status', '')))}</td>"
+                    f"<td>{escape(str(item.get('name', '')))}</td>"
+                    f"<td>{escape(str(item.get('message', '')))}</td>"
+                    f"<td>{escape(str(item.get('remediation', '')))}</td>"
+                    "</tr>"
+                )
+        rec_rows = []
+        if isinstance(recs, list):
+            for rec in recs:
+                item = rec if isinstance(rec, dict) else {}
+                rec_rows.append(
+                    "<li>"
+                    f"<strong>{escape(str(item.get('name', '')))}</strong> "
+                    f"({escape(str(item.get('priority', '')))}): "
+                    f"{escape(str(item.get('message', '')))}"
+                    f"<br>{escape(str(item.get('remediation', '')))}"
+                    "</li>"
+                )
+        html = (
+            "<!doctype html><html><head><meta charset='utf-8'><title>Health Check</title>"
+            "<style>body{font-family:Arial;background:#0b1220;color:#e5e7eb;margin:20px}"
+            "table{width:100%;border-collapse:collapse}th,td{border:1px solid #1f2937;padding:6px;font-size:12px;vertical-align:top}"
+            "th{background:#111827}ul{line-height:1.5}</style></head><body>"
+            f"<h1>Health Check</h1><p>Serial: {escape(str(report.get('target_serial','')))} | Status: {escape(str(report.get('status','')))} | Summary: {escape(str(report.get('summary','')))}</p>"
+            f"<h2>Recommendations</h2><ul>{''.join(rec_rows) if rec_rows else '<li>Aucune recommandation</li>'}</ul>"
+            "<h2>Checks</h2>"
+            "<table><thead><tr><th>Status</th><th>Name</th><th>Message</th><th>Remediation</th></tr></thead>"
+            f"<tbody>{''.join(check_rows)}</tbody></table></body></html>"
+        )
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(html, encoding="utf-8")
+        Toast(self, "Health check exporte (HTML)")
+
     def _run_in_worker(self, task: str, fn, context: dict | None = None) -> None:
         self.statusBar().showMessage(f"Operation en cours: {task}...")
 
@@ -5359,6 +5616,7 @@ class MainWindow(QMainWindow):
                 "status": status,
                 "finished_at": finished_at,
                 "serial": rep.get("serial", ""),
+                "variables": rep.get("variables", {}),
             }
             self._workflow_run_history.append(entry)
             self._refresh_workflows_table()
