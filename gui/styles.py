@@ -343,7 +343,7 @@ QLabel#clockLabel {
 }
 QWidget#sidebarContainer {
     background-color: rgba(255, 255, 255, 0.96);
-    border: 1px solid __BORDER__;
+    border: 2px solid __BORDER__;
     border-radius: 12px;
 }
 QLabel#sidebarTitle {
@@ -357,7 +357,7 @@ QLabel#shortcutHint {
 }
 QListWidget#navSidebar {
     background-color: __PANEL__;
-    border: 1px solid __BORDER__;
+    border: 2px solid __BORDER__;
     border-radius: 10px;
     padding: 6px;
 }
@@ -370,14 +370,14 @@ QListWidget#navSidebar::item {
 QListWidget#navSidebar::item:selected {
     background-color: rgba(245, 158, 11, 0.12);
     color: __TITLE__;
-    border: 1px solid __ACCENT_SOFT__;
+    border: 1px solid __ACCENT__;
 }
 QListWidget#navSidebar::item:hover {
     background-color: rgba(245, 158, 11, 0.06);
 }
 QWidget#panelCard, QGroupBox, QGroupBox#paneGroup {
     background-color: __PANEL__;
-    border: 1px solid __BORDER__;
+    border: 2px solid __BORDER__;
     border-radius: 12px;
     margin-top: 10px;
     padding-top: 8px;
@@ -418,12 +418,12 @@ QPushButton#dangerBtn:hover { background-color: __DANGER_HOVER__; }
 QPushButton#ghostBtn {
     background-color: __PANEL_ALT__;
     color: __TEXT__;
-    border: 1px solid __BORDER_SOFT__;
+    border: 1px solid __BORDER__;
 }
 QPushButton#ghostBtn:hover { background-color: rgba(245, 158, 11, 0.10); }
 QLineEdit, QTextEdit, QPlainTextEdit, QListWidget, QTreeWidget, QTableWidget, QComboBox {
     background-color: __INPUT__;
-    border: 1px solid __BORDER_SOFT__;
+    border: 2px solid __BORDER__;
     border-radius: 8px;
     padding: 8px;
     selection-background-color: __ACCENT__;
@@ -437,7 +437,7 @@ QLineEdit#searchInput {
     background-color: __INPUT_ALT__;
 }
 QListWidget#fileList, QListWidget#commandCatalog, QListWidget#batchQueue {
-    border-color: __BORDER_SOFT__;
+    border-color: __BORDER__;
 }
 QListWidget#appsGrid::item {
     padding: 8px;
@@ -446,33 +446,38 @@ QListWidget#appsGrid::item {
 }
 QListWidget#appsGrid::item:selected {
     background-color: rgba(245, 158, 11, 0.12);
-    border: 1px solid __ACCENT_SOFT__;
+    border: 1px solid __ACCENT__;
 }
 QTextEdit#commandDetails, QTextEdit#batchOutput {
     background-color: __INPUT_ALT__;
     border-color: __BORDER__;
 }
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QListWidget:focus, QTreeWidget:focus, QTableWidget:focus, QComboBox:focus {
-    border: 1px solid __ACCENT_SOFT__;
+    border: 2px solid __ACCENT__;
 }
 QTableWidget {
     gridline-color: __BORDER__;
 }
+QTableWidget::item {
+    padding: 6px;
+    border-bottom: 1px solid #94a3b8;
+    border-right: 1px solid #cbd5e1;
+}
 QHeaderView::section {
-    background-color: __PANEL_ALT__;
+    background-color: #e2e8f0;
     color: __TITLE__;
-    border: 0;
+    border: 1px solid __BORDER__;
     padding: 8px;
     font-weight: 700;
 }
 QTabWidget::pane {
-    border: 1px solid __BORDER__;
+    border: 2px solid __BORDER__;
     border-radius: 12px;
     background-color: rgba(255, 255, 255, 0.92);
     padding: 8px;
 }
 QProgressBar {
-    border: 1px solid __BORDER_SOFT__;
+    border: 2px solid __BORDER__;
     border-radius: 7px;
     text-align: center;
     background-color: __INPUT_ALT__;
@@ -490,7 +495,7 @@ QSplitter::handle {
 }
 QStatusBar {
     background: #f3f6fb;
-    border-top: 1px solid __BORDER__;
+    border-top: 2px solid __BORDER__;
 }
 QScrollBar:vertical {
     background: #f2f5fa;
